@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="warm">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Design a URL Shortener (TinyURL) — Director's Edge</title>
+<meta name="description" content="System design deep-dive: Design a URL Shortener (TinyURL)." />
+<link rel="preconnect" href="https://fonts.googleapis.com" /><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="assets/css/styles.css" />
+</head>
+<body data-theme="warm">
+<section class="hero"><span class="eyebrow">System design deep-dive</span><h1>Design a URL Shortener (TinyURL)</h1><p class="lead">A deep-dive into the classic read-heavy service: minting short codes without coordination, and serving billions of redirects from cache.</p></section>
+<div class="wrap section"><div class="page-layout">
+  <aside class="toc"><strong>On this page</strong>
+    <a href="#think">How to think (step by step)</a>
+    <a href="#reqs">1 · Requirements</a>
+    <a href="#capacity">2 · Capacity</a>
+    <a href="#arch">3 · Architecture</a>
+    <a href="#hard">4 · The hard part</a>
+    <a href="#trade">5 · Trade-offs</a>
+    <a href="#subsystems">Key sub-systems</a>
+    <a href="#bottlenecks">Bottlenecks</a>
+    <a href="#levels">Senior / Staff / Principal</a>
+    <a href="#faq">Follow-up Q&amp;A</a>
+  </aside>
+  <main>
+    <div class="callout"><span class="label">&#11088; At Google</span><p>Drive it top-down: requirements &rarr; scale &rarr; design &rarr; bottleneck &rarr; trade-offs. Back to <a href="system-design-cases.html">System Design II</a>.</p></div>
+    <div class="story"><span class="label">&#128214; The story</span>
+      <p>It looks trivial &mdash; map a short code to a long URL &mdash; but the interview is really about two things: generating short unique codes at scale without a bottleneck, and serving a flood of redirects fast.</p>
+      <p>So you precompute capacity (62^7 codes), hand each node a <em>range</em> of IDs to encode locally, and put a cache/CDN in front so the read path barely touches the database.</p>
+    </div>
+            <div class="tools"><span class="tlabel">&#128295; Typical tools</span><span class="tool">Redis</span><span class="tool">DynamoDB</span><span class="tool">Cassandra</span><span class="tool">NGINX</span><span class="tool">CloudFront (CDN)</span><span class="tool">AWS</span></div>
+
+    <h2 id="think">How to think about it &mdash; step by step</h2>
+    <div class="steps">
+      <div class="step"><h4>Ask: who uses this, and how?</h4><p>People <em>create</em> a link occasionally but <em>click</em> it constantly. <span class="why">Why it matters:</span> reads dwarf writes, so we should make reading effortless even if creating does extra work.</p></div>
+      <div class="step"><h4>Do quick back-of-envelope math</h4><p>Say 100M new links/day. That's only ~1,200 writes/sec, but clicks are 100&times; more. <span class="why">Why:</span> it confirms the database is tiny but the redirect path must be fast and cheap.</p></div>
+      <div class="step"><h4>Find the one genuinely hard thing</h4><p>Everything is easy except making a <em>short, unique</em> code without all servers tripping over each other. <span class="why">Why:</span> naming the real challenge stops you over-engineering the rest.</p></div>
+      <div class="step"><h4>Choose a technique for the hard thing</h4><p>Give each server a block of numbers to hand out (encode them in base-62), or hash the URL and retry on collision. <span class="why">Why:</span> both avoid a central counter that would bottleneck.</p></div>
+      <div class="step"><h4>Make the common case fly</h4><p>Put a cache/CDN in front so popular links redirect without touching the database. <span class="why">Why:</span> 99% of traffic is reads, so caching is the single biggest win.</p></div>
+      <div class="step"><h4>State the trade-off out loud</h4><p>A 301 (permanent) redirect is cacheable and fast but you lose click analytics; a 302 counts every click but hits your servers. <span class="why">Why:</span> showing you see the cost is what senior sounds like.</p></div>
+    </div>
+
+    <h2 id="reqs">1 &middot; Requirements</h2>
+<p><strong>Functional:</strong> shorten a long URL; redirect a short code to it; optional custom alias, expiry, analytics. <strong>Non-functional:</strong> extremely read-heavy, very low redirect latency, high availability.</p>    <h2 id="capacity">2 &middot; Capacity</h2>
+<p>~100M new links/day &rarr; ~1.2K writes/s; reads 100&times; that (tens of thousands/s). 7-char base62 = 62^7 &asymp; 3.5 trillion codes &mdash; plenty. Years of links &times; ~500 bytes &rarr; tens of TB &mdash; trivial for a KV store.</p>    <h2 id="arch">3 &middot; Architecture</h2>
+    <figure class="diagram">
+<svg viewBox="0 0 760 170" role="img" aria-label="URL shortener architecture"><defs><marker id="m" markerWidth="9" markerHeight="9" refX="7" refY="4.5" orient="auto"><path d="M0,0 L9,4.5 L0,9 z" fill="var(--accent)"/></marker></defs><rect class="svg-box" x="8" y="58" width="84" height="50" rx="9"/><text class="svg-txt" x="50" y="81" text-anchor="middle">Client</text><rect class="svg-accent" x="112" y="58" width="110" height="50" rx="9"/><text class="svg-txt" x="167" y="81" text-anchor="middle">App tier</text><text class="svg-sub" x="167" y="98" text-anchor="middle">stateless</text><rect class="svg-good" x="244" y="16" width="150" height="46" rx="9"/><text class="svg-txt" x="319" y="37" text-anchor="middle">Cache / CDN</text><text class="svg-sub" x="319" y="54" text-anchor="middle">hot redirects</text><rect class="svg-box" x="244" y="100" width="150" height="46" rx="9"/><text class="svg-txt" x="319" y="121" text-anchor="middle">KV store</text><text class="svg-sub" x="319" y="138" text-anchor="middle">code&rarr;URL</text><rect class="svg-accent2" x="430" y="58" width="150" height="50" rx="9"/><text class="svg-txt" x="505" y="81" text-anchor="middle">ID service</text><text class="svg-sub" x="505" y="98" text-anchor="middle">counter range</text><line class="svg-line-acc" x1="92" y1="83" x2="110" y2="83" marker-end="url(#m)"/><line class="svg-line-acc" x1="222" y1="76" x2="242" y2="40" marker-end="url(#m)"/><line class="svg-line-acc" x1="222" y1="90" x2="242" y2="118" marker-end="url(#m)"/><line class="svg-line-acc" x1="222" y1="83" x2="428" y2="83" marker-end="url(#m)"/></svg>
+      <figcaption>Writes mint a code via the ID service and store <code>code&rarr;URL</code> in a KV store; redirects are served from cache/CDN, falling through to the KV store on a miss. The app tier is stateless behind a load balancer.</figcaption>
+    </figure>
+    <h2 id="hard">4 &middot; The hard part &mdash; code generation</h2>
+    <ul class="clean">
+      <li><strong>Counter range</strong>: each app node grabs a block of IDs (e.g. 1,000 at a time) from a central allocator and base62-encodes them &mdash; no per-request coordination, no collisions.</li>
+      <li><strong>Hashing alternative</strong>: hash(longURL), take 7 chars, retry on collision &mdash; no coordination but must detect collisions.</li>
+      <li><strong>Custom aliases</strong>: a uniqueness check on the chosen alias.</li>
+    </ul>
+    <h2 id="trade">5 &middot; Trade-offs</h2>
+    <ul class="clean">
+      <li>Counter (compact, sequential, slightly guessable) vs hash (no coordination, collision handling).</li>
+      <li>301 permanent redirect (cacheable, fast, loses per-hit analytics) vs 302 (every hit counted, more origin load).</li>
+    </ul>
+        <h2 id="subsystems">Key sub-systems</h2>
+    <ul class="clean">
+      <li><strong>Write API</strong> &mdash; validates the URL, mints a code, persists it.</li>
+      <li><strong>Code generator</strong> &mdash; base62 of an ID range, or hash + collision check.</li>
+      <li><strong>KV store</strong> &mdash; <code>code &rarr; longURL</code>, the source of truth.</li>
+      <li><strong>Redirect path</strong> &mdash; cache/CDN in front of a stateless app tier.</li>
+      <li><strong>Analytics</strong> &mdash; click events written asynchronously.</li>
+    </ul>
+    <h2 id="bottlenecks">Bottlenecks &amp; what to optimize next</h2>
+    <ul class="clean">
+      <li>The redirect read path is hottest &mdash; scale it first with cache/CDN and read replicas.</li>
+      <li>Central code generation can bottleneck &mdash; hand out ID ranges so nodes never coordinate per request.</li>
+    </ul>
+    <h2 id="levels">Senior &middot; Staff &middot; Principal</h2>
+    <div class="ladder">
+      <div class="lv s"><span class="tier">Senior</span><p>Designs the KV mapping, base62 codes, and a cache for redirects.</p></div>
+      <div class="lv t"><span class="tier">Staff</span><p>Handles coordination-free ID generation, cache stampede, and the 301-vs-302 analytics trade-off.</p></div>
+      <div class="lv p"><span class="tier">Principal</span><p>Raises custom domains, abuse/phishing detection, global multi-region latency, and click-log retention/privacy.</p></div>
+    </div>
+    <h2 id="faq">Common follow-up questions</h2>
+    <details class="qa"><summary>How do you stop two servers minting the same code?</summary><div class="body"><p>Give each server a pre-allocated range of IDs (or hash with a collision check) so there's no shared counter on the hot path.</p></div></details>
+    <details class="qa"><summary>Why pick 302 over 301?</summary><div class="body"><p>302 isn't browser-cached, so every click reaches you and can be counted &mdash; at the cost of more load. 301 is faster but loses analytics.</p></div></details>
+    <details class="qa"><summary>How do you handle malicious links?</summary><div class="body"><p>Scan URLs on creation against threat feeds, rate-limit creation per account, and support blocklists/takedowns.</p></div></details>
+
+    <div class="recap"><span class="label">&#129504; Remember it</span>
+      <p>URL shortener = <span class="hook">cheap reads via cache + coordination-free code generation</span>.</p>
+      <ul>
+        <li>Base62 of a per-node counter range; or hash + collision retry.</li>
+        <li>Cache/CDN absorbs the read flood; KV store is the source of truth.</li>
+        <li>301 (cacheable, no analytics) vs 302 (counts hits).</li>
+      </ul>
+    </div>
+
+    <div class="pagenav">
+      <a class="card" href="system-design-cases.html"><span class="tag">&larr; Back</span><h3>System Design II</h3></a>
+      <a class="card" href="sd-pastebin.html"><span class="tag">Next &rarr;</span><h3>Pastebin</h3></a>
+    </div>
+  </main>
+</div></div>
+<script src="assets/js/main.js"></script>
+</body>
+</html>

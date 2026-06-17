@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="warm">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Design a Distributed Job Scheduler (cron at scale) — Director's Edge</title>
+<meta name="description" content="System design deep-dive: Design a Distributed Job Scheduler (cron at scale)." />
+<link rel="preconnect" href="https://fonts.googleapis.com" /><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="assets/css/styles.css" />
+</head>
+<body data-theme="warm">
+<section class="hero"><span class="eyebrow">System design deep-dive</span><h1>Design a Distributed Job Scheduler (cron at scale)</h1><p class="lead">A deep-dive into reliable scheduled execution: due-time polling, leases/locks to prevent duplicate runs, idempotency, and retries.</p></section>
+<div class="wrap section"><div class="page-layout">
+  <aside class="toc"><strong>On this page</strong>
+    <a href="#think">How to think (step by step)</a>
+    <a href="#reqs">1 · Requirements</a>
+    <a href="#arch">2 · Architecture</a>
+    <a href="#hard">3 · The hard parts</a>
+    <a href="#trade">4 · Trade-offs</a>
+    <a href="#subsystems">Key sub-systems</a>
+    <a href="#bottlenecks">Bottlenecks</a>
+    <a href="#levels">Senior / Staff / Principal</a>
+    <a href="#faq">Follow-up Q&amp;A</a>
+  </aside>
+  <main>
+    <div class="callout"><span class="label">&#11088; At Google</span><p>Drive it top-down: requirements &rarr; scale &rarr; design &rarr; bottleneck &rarr; trade-offs. Back to <a href="system-design-cases.html">System Design II</a>.</p></div>
+    <div class="story"><span class="label">&#128214; The story</span>
+      <p>&lsquo;Run this job at this time&rsquo; sounds simple until a worker crashes mid-run, or two workers grab the same job. The whole design is about running each job &mdash; despite failures &mdash; exactly enough.</p>
+      <p>So jobs carry a nextRunAt, workers claim due jobs with a lease/lock so only one runs it, execution is idempotent so retries are safe, and failures go to a retry/dead-letter path.</p>
+    </div>
+            <div class="tools"><span class="tlabel">&#128295; Typical tools</span><span class="tool">Apache Airflow</span><span class="tool">Quartz</span><span class="tool">Celery</span><span class="tool">Kubernetes CronJobs</span><span class="tool">Redis</span></div>
+
+    <h2 id="think">How to think about it &mdash; step by step</h2>
+    <div class="steps">
+      <div class="step"><h4>State the two fears</h4><p>A job runs twice, or a job never runs. <span class="why">Why:</span> the whole design defends against these.</p></div>
+      <div class="step"><h4>Track due times</h4><p>Store each job with a 'next run at' and poll for due ones. <span class="why">Why:</span> simple, and easy to partition.</p></div>
+      <div class="step"><h4>Prevent double runs</h4><p>A worker claims a job with a lease/lock that auto-expires if it crashes. <span class="why">Why:</span> only one owner runs it, and a dead worker releases it.</p></div>
+      <div class="step"><h4>Make jobs idempotent</h4><p>Design tasks to be safe to run twice. <span class="why">Why:</span> with at-least-once execution, retries will happen.</p></div>
+      <div class="step"><h4>Name the trade-off</h4><p>At-least-once + idempotency (simple, safe) vs exactly-once (hard). <span class="why">Why:</span> almost always choose the former.</p></div>
+    </div>
+
+    <h2 id="reqs">1 &middot; Requirements</h2>
+<p><strong>Functional:</strong> schedule one-off and recurring jobs; run them near their due time; survive failures. <strong>Non-functional:</strong> no duplicate runs, no missed jobs, scalable to millions of jobs.</p>    <h2 id="arch">2 &middot; Architecture</h2>
+    <figure class="diagram">
+<svg viewBox="0 0 780 170" role="img" aria-label="Distributed job scheduler"><defs><marker id="m" markerWidth="9" markerHeight="9" refX="7" refY="4.5" orient="auto"><path d="M0,0 L9,4.5 L0,9 z" fill="var(--accent)"/></marker></defs><rect class="svg-box" x="8" y="60" width="110" height="50" rx="9"/><text class="svg-txt" x="63" y="83" text-anchor="middle">Job store</text><text class="svg-sub" x="63" y="100" text-anchor="middle">nextRunAt</text><rect class="svg-accent" x="150" y="60" width="130" height="50" rx="9"/><text class="svg-txt" x="215" y="83" text-anchor="middle">Dispatcher</text><text class="svg-sub" x="215" y="100" text-anchor="middle">poll due jobs</text><rect class="svg-accent2" x="310" y="14" width="150" height="46" rx="9"/><text class="svg-txt" x="385" y="35" text-anchor="middle">Lease / lock</text><text class="svg-sub" x="385" y="52" text-anchor="middle">claim job</text><rect class="svg-good" x="310" y="104" width="150" height="46" rx="9"/><text class="svg-txt" x="385" y="125" text-anchor="middle">Workers</text><text class="svg-sub" x="385" y="142" text-anchor="middle">execute</text><rect class="svg-box" x="500" y="104" width="150" height="46" rx="9"/><text class="svg-txt" x="575" y="125" text-anchor="middle">Retries / DLQ</text><text class="svg-sub" x="575" y="142" text-anchor="middle">on failure</text><line class="svg-line-acc" x1="118" y1="85" x2="148" y2="85" marker-end="url(#m)"/><line class="svg-line-acc" x1="280" y1="76" x2="308" y2="40" marker-end="url(#m)"/><line class="svg-line-acc" x1="280" y1="94" x2="308" y2="124" marker-end="url(#m)"/><line class="svg-line-acc" x1="460" y1="127" x2="498" y2="127" marker-end="url(#m)"/></svg>
+      <figcaption>Jobs are stored with a nextRunAt and partitioned. A dispatcher polls for due jobs; a worker claims one via a lease/lock (so only one runs it), executes idempotently, then reschedules or completes. Failures retry with backoff into a dead-letter queue.</figcaption>
+    </figure>
+        <div class="example" data-ex-added><span class="label">&#128205; Real example &mdash; cron expressions</span>
+      <p>A cron expression is five fields: <code>minute hour day-of-month month day-of-week</code>. A few real ones:</p>
+      <pre class="code">0 2 * * 1       &rarr;  02:00 every Monday
+*/15 * * * *    &rarr;  every 15 minutes
+0 0 1 * *       &rarr;  midnight on the 1st of each month
+30 9 * * 1-5    &rarr;  09:30 Monday&ndash;Friday
+0 */6 * * *     &rarr;  every 6 hours (00:00, 06:00, 12:00, 18:00)</pre>
+      <p><strong>What this teaches:</strong> <code>*</code> means &ldquo;every&rdquo;, <code>*/n</code> means &ldquo;every n&rdquo;, and ranges like <code>1-5</code> work. Two leadership gotchas: cron has <strong>no timezone</strong> of its own (decide UTC vs local, or daylight-saving will surprise you), and thousands of jobs set to <code>0 0 * * *</code> all fire at once &mdash; a thundering herd &mdash; so add a little random <strong>jitter</strong> to spread them out.</p>
+    </div>
+
+    <h2 id="hard">3 &middot; The hard parts</h2>
+    <ul class="clean">
+      <li><strong>No double-run</strong>: a lease/lock (DB row lock, or Redis with TTL) ensures a single owner; the lease auto-expires if the worker dies.</li>
+      <li><strong>Idempotency</strong>: jobs must be safe to run twice (at-least-once), since failures cause retries.</li>
+      <li><strong>Timeliness</strong>: short poll intervals or a time-wheel; partition so the due-time scan stays cheap.</li>
+    </ul>
+    <h2 id="trade">4 &middot; Trade-offs</h2>
+    <ul class="clean">
+      <li>At-least-once + idempotency (simple, safe) vs exactly-once (hard).</li>
+      <li>Polling interval: tighter = timelier but more load.</li>
+    </ul>
+        <h2 id="subsystems">Key sub-systems</h2>
+    <ul class="clean">
+      <li><strong>Job store</strong> &mdash; jobs + nextRunAt, partitioned.</li>
+      <li><strong>Dispatcher</strong> &mdash; polls due jobs.</li>
+      <li><strong>Lease/lock</strong> &mdash; single-owner claim.</li>
+      <li><strong>Workers</strong> &mdash; idempotent execution.</li>
+      <li><strong>Retry/DLQ</strong> &mdash; backoff on failure.</li>
+    </ul>
+    <h2 id="bottlenecks">Bottlenecks &amp; what to optimize next</h2>
+    <ul class="clean">
+      <li>The due-time scan can bottleneck &mdash; partition jobs and index by nextRunAt.</li>
+      <li>A thundering herd at a popular cron minute &mdash; jitter schedules.</li>
+    </ul>
+    <h2 id="levels">Senior &middot; Staff &middot; Principal</h2>
+    <div class="ladder">
+      <div class="lv s"><span class="tier">Senior</span><p>Builds due-time polling with leases and idempotent jobs.</p></div>
+      <div class="lv t"><span class="tier">Staff</span><p>Handles exactly-enough execution, retries/DLQ, and timeliness via partitioning.</p></div>
+      <div class="lv p"><span class="tier">Principal</span><p>Raises dependency graphs/DAGs, backfills, and multi-tenant fairness/isolation.</p></div>
+    </div>
+    <h2 id="faq">Common follow-up questions</h2>
+    <details class="qa"><summary>How do you prevent a job running twice?</summary><div class="body"><p>A worker claims a job with a lease/lock that auto-expires on crash; only the owner runs it.</p></div></details>
+    <details class="qa"><summary>What if a worker dies mid-job?</summary><div class="body"><p>The lease expires and another worker re-claims it; because jobs are idempotent, re-running is safe.</p></div></details>
+    <details class="qa"><summary>How do you keep jobs timely?</summary><div class="body"><p>Short poll intervals or a time-wheel, plus partitioning so the due-time scan stays cheap.</p></div></details>
+
+    <div class="recap"><span class="label">&#129504; Remember it</span>
+      <p>Job scheduler = <span class="hook">due-time poll + lease to avoid double-runs + idempotency</span>.</p>
+      <ul>
+        <li>nextRunAt + partitioned store; dispatcher polls due jobs.</li>
+        <li>Lease/lock = single owner; auto-expire on crash.</li>
+        <li>Idempotent execution; retries + DLQ.</li>
+      </ul>
+    </div>
+
+    <div class="pagenav">
+      <a class="card" href="sd-leaderboard.html"><span class="tag">&larr; Previous</span><h3>Leaderboard</h3></a>
+      <a class="card" href="sd-email.html"><span class="tag">Next &rarr;</span><h3>Email Service</h3></a>
+    </div>
+  </main>
+</div></div>
+<script src="assets/js/main.js"></script>
+</body>
+</html>

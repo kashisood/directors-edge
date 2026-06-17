@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="warm">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Design an API Gateway — Director's Edge</title>
+<meta name="description" content="System design deep-dive: Design an API Gateway." />
+<link rel="preconnect" href="https://fonts.googleapis.com" /><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="assets/css/styles.css" />
+</head>
+<body data-theme="warm">
+<section class="hero"><span class="eyebrow">System design deep-dive</span><h1>Design an API Gateway</h1><p class="lead">A deep-dive into the single front door: authentication, rate limiting, routing and aggregation, kept stateless and highly available.</p></section>
+<div class="wrap section"><div class="page-layout">
+  <aside class="toc"><strong>On this page</strong>
+    <a href="#think">How to think (step by step)</a>
+    <a href="#reqs">1 · Requirements</a>
+    <a href="#arch">2 · Architecture</a>
+    <a href="#hard">3 · The hard parts</a>
+    <a href="#trade">4 · Trade-offs</a>
+    <a href="#subsystems">Key sub-systems</a>
+    <a href="#bottlenecks">Bottlenecks</a>
+    <a href="#levels">Senior / Staff / Principal</a>
+    <a href="#faq">Follow-up Q&amp;A</a>
+  </aside>
+  <main>
+    <div class="callout"><span class="label">&#11088; At Google</span><p>Drive it top-down: requirements &rarr; scale &rarr; design &rarr; bottleneck &rarr; trade-offs. Back to <a href="system-design-cases.html">System Design II</a>.</p></div>
+    <div class="story"><span class="label">&#128214; The story</span>
+      <p>As soon as you have many services, you don&#8217;t want each one re-implementing auth, rate limiting, and TLS. The gateway is the single front door that handles those cross-cutting concerns once.</p>
+      <p>The catch: being on every request, it must be blazing fast and never the thing that takes the whole API down &mdash; so it&#8217;s stateless, horizontally scaled, and caches what it can.</p>
+    </div>
+            <div class="tools"><span class="tlabel">&#128295; Typical tools</span><span class="tool">Kong</span><span class="tool">NGINX</span><span class="tool">Envoy</span><span class="tool">AWS API Gateway</span><span class="tool">Apigee</span></div>
+
+    <h2 id="think">How to think about it &mdash; step by step</h2>
+    <div class="steps">
+      <div class="step"><h4>Spot the repeated work</h4><p>Every service would otherwise re-implement auth, rate limiting, TLS. <span class="why">Why:</span> that's duplication and inconsistency &mdash; a job for one shared layer.</p></div>
+      <div class="step"><h4>Make it the single front door</h4><p>Route, authenticate, rate-limit, and observe in one place, then forward to the right service. <span class="why">Why:</span> services stay clean and focused on business logic.</p></div>
+      <div class="step"><h4>Keep it stateless</h4><p>No per-user state on the gateway itself. <span class="why">Why:</span> so you can run many copies behind a load balancer.</p></div>
+      <div class="step"><h4>Protect against the obvious risk</h4><p>It's on every request, so it must be fast and never a single point of failure. <span class="why">Why:</span> if the gateway is slow or down, everything is.</p></div>
+      <div class="step"><h4>Name the trade-off</h4><p>One consistent policy layer vs a shared dependency everything relies on. <span class="why">Why:</span> centralization helps and creates risk &mdash; say both.</p></div>
+    </div>
+
+    <h2 id="reqs">1 &middot; Requirements</h2>
+<p><strong>Functional:</strong> one entry point that authenticates, authorizes, rate-limits, routes, and optionally aggregates calls to backend services. <strong>Non-functional:</strong> very low added latency, high availability &mdash; it&#8217;s on every request.</p>    <h2 id="arch">2 &middot; Architecture</h2>
+    <figure class="diagram">
+<svg viewBox="0 0 780 190" role="img" aria-label="API gateway routing to services"><defs><marker id="m" markerWidth="9" markerHeight="9" refX="7" refY="4.5" orient="auto"><path d="M0,0 L9,4.5 L0,9 z" fill="var(--accent)"/></marker></defs><rect class="svg-box" x="8" y="72" width="84" height="50" rx="9"/><text class="svg-txt" x="50" y="95" text-anchor="middle">Clients</text><rect class="svg-accent" x="112" y="72" width="160" height="50" rx="9"/><text class="svg-txt" x="192" y="95" text-anchor="middle">API gateway</text><text class="svg-sub" x="192" y="112" text-anchor="middle">authN, rate-limit, route</text><rect class="svg-good" x="300" y="12" width="150" height="44" rx="9"/><text class="svg-txt" x="375" y="32" text-anchor="middle">Service A</text><rect class="svg-good" x="300" y="72" width="150" height="44" rx="9"/><text class="svg-txt" x="375" y="92" text-anchor="middle">Service B</text><rect class="svg-good" x="300" y="132" width="150" height="44" rx="9"/><text class="svg-txt" x="375" y="152" text-anchor="middle">Service C</text><rect class="svg-accent2" x="490" y="72" width="150" height="50" rx="9"/><text class="svg-txt" x="565" y="95" text-anchor="middle">Auth / IdP</text><text class="svg-sub" x="565" y="112" text-anchor="middle">JWT verify</text><rect class="svg-box" x="660" y="72" width="110" height="50" rx="9"/><text class="svg-txt" x="715" y="95" text-anchor="middle">Observability</text><text class="svg-sub" x="715" y="112" text-anchor="middle">metrics</text><line class="svg-line-acc" x1="92" y1="97" x2="110" y2="97" marker-end="url(#m)"/><line class="svg-line-acc" x1="272" y1="90" x2="298" y2="34" marker-end="url(#m)"/><line class="svg-line-acc" x1="272" y1="97" x2="298" y2="94" marker-end="url(#m)"/><line class="svg-line-acc" x1="272" y1="104" x2="298" y2="154" marker-end="url(#m)"/><line class="svg-line-acc" x1="272" y1="86" x2="488" y2="86" marker-end="url(#m)"/></svg>
+      <figcaption>A stateless gateway tier behind a load balancer terminates TLS, validates the JWT/auth with the IdP, applies rate limits, routes to the right service (and may aggregate responses), and emits metrics/traces. Scale it horizontally.</figcaption>
+    </figure>
+    <h2 id="hard">3 &middot; The hard parts</h2>
+    <ul class="clean">
+      <li><strong>Central choke point</strong>: it must add minimal latency and never be a single point of failure &mdash; run many stateless instances, cache auth decisions.</li>
+      <li><strong>Cross-cutting concerns</strong>: auth, rate limiting, retries, circuit-breaking, request/response transformation live here so services stay clean.</li>
+      <li><strong>Routing</strong>: a config-driven route table (path/host &rarr; service), versioned.</li>
+    </ul>
+    <h2 id="trade">4 &middot; Trade-offs</h2>
+    <ul class="clean">
+      <li>Centralizing concerns (clean services, consistent policy) vs a shared dependency everything relies on.</li>
+      <li>Aggregation at the gateway (fewer client round-trips) vs gateway complexity (BFF pattern can help).</li>
+    </ul>
+        <h2 id="subsystems">Key sub-systems</h2>
+    <ul class="clean">
+      <li><strong>TLS termination</strong> &mdash; ends HTTPS at the edge.</li>
+      <li><strong>AuthN/AuthZ</strong> &mdash; validate JWT/keys with the IdP.</li>
+      <li><strong>Rate limiting</strong> &mdash; protect backends.</li>
+      <li><strong>Router</strong> &mdash; path/host &rarr; service; optional aggregation.</li>
+      <li><strong>Observability</strong> &mdash; metrics, traces, logs.</li>
+    </ul>
+    <h2 id="bottlenecks">Bottlenecks &amp; what to optimize next</h2>
+    <ul class="clean">
+      <li>The gateway is on every request &mdash; keep it stateless and horizontally scaled so it's never a SPOF.</li>
+      <li>Auth checks add latency &mdash; cache validated tokens/decisions briefly.</li>
+    </ul>
+    <h2 id="levels">Senior &middot; Staff &middot; Principal</h2>
+    <div class="ladder">
+      <div class="lv s"><span class="tier">Senior</span><p>Configures routing, auth, and rate limiting at one front door.</p></div>
+      <div class="lv t"><span class="tier">Staff</span><p>Handles aggregation (BFF), circuit-breaking/retries, and keeping latency low under load.</p></div>
+      <div class="lv p"><span class="tier">Principal</span><p>Raises zero-trust posture, multi-region routing, progressive delivery, and governance of the route/auth config.</p></div>
+    </div>
+    <h2 id="faq">Common follow-up questions</h2>
+    <details class="qa"><summary>Doesn't a single gateway become a bottleneck?</summary><div class="body"><p>It's stateless, so you run many instances behind a load balancer; cache auth decisions and keep logic thin to minimize added latency.</p></div></details>
+    <details class="qa"><summary>Where do retries and circuit-breaking live?</summary><div class="body"><p>At the gateway (or a service mesh), so cross-cutting resilience is consistent and services stay simple.</p></div></details>
+    <details class="qa"><summary>Gateway vs service mesh?</summary><div class="body"><p>Gateway handles north-south (client&rarr;system) traffic; a mesh handles east-west (service&rarr;service). Large systems use both.</p></div></details>
+
+    <div class="recap"><span class="label">&#129504; Remember it</span>
+      <p>API gateway = <span class="hook">one stateless front door for cross-cutting concerns</span>.</p>
+      <ul>
+        <li>AuthN, rate limiting, routing, aggregation, observability in one place.</li>
+        <li>Stateless + horizontally scaled so it&#8217;s never a SPOF.</li>
+        <li>Keeps backend services clean; mind the shared-dependency risk.</li>
+      </ul>
+    </div>
+
+    <div class="pagenav">
+      <a class="card" href="sd-distributed-cache.html"><span class="tag">&larr; Previous</span><h3>Distributed Cache</h3></a>
+      <a class="card" href="sd-photo-sharing.html"><span class="tag">Next &rarr;</span><h3>Photo Sharing</h3></a>
+    </div>
+  </main>
+</div></div>
+<script src="assets/js/main.js"></script>
+</body>
+</html>

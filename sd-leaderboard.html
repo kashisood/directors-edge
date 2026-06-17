@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="warm">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Design a Leaderboard — Director's Edge</title>
+<meta name="description" content="System design deep-dive: Design a Leaderboard." />
+<link rel="preconnect" href="https://fonts.googleapis.com" /><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="assets/css/styles.css" />
+</head>
+<body data-theme="warm">
+<section class="hero"><span class="eyebrow">System design deep-dive</span><h1>Design a Leaderboard</h1><p class="lead">A deep-dive into real-time rankings: sorted sets for top-N and rank queries, sharding, and exact-vs-approximate at scale.</p></section>
+<div class="wrap section"><div class="page-layout">
+  <aside class="toc"><strong>On this page</strong>
+    <a href="#think">How to think (step by step)</a>
+    <a href="#reqs">1 · Requirements</a>
+    <a href="#arch">2 · Architecture</a>
+    <a href="#hard">3 · The hard parts</a>
+    <a href="#trade">4 · Trade-offs</a>
+    <a href="#subsystems">Key sub-systems</a>
+    <a href="#bottlenecks">Bottlenecks</a>
+    <a href="#levels">Senior / Staff / Principal</a>
+    <a href="#faq">Follow-up Q&amp;A</a>
+  </aside>
+  <main>
+    <div class="callout"><span class="label">&#11088; At Google</span><p>Drive it top-down: requirements &rarr; scale &rarr; design &rarr; bottleneck &rarr; trade-offs. Back to <a href="system-design-cases.html">System Design II</a>.</p></div>
+    <div class="story"><span class="label">&#128214; The story</span>
+      <p>A leaderboard needs two things that are individually easy and jointly hard at scale: the top N players, and <em>your</em> exact rank &mdash; updated in real time as scores change constantly.</p>
+      <p>A sorted set (Redis ZSET) gives both in log time. The scaling question is what happens at tens of millions of players, where exact global rank gets expensive and approximation enters.</p>
+    </div>
+            <div class="tools"><span class="tlabel">&#128295; Typical tools</span><span class="tool">Redis (ZSET)</span><span class="tool">Cassandra</span></div>
+
+    <h2 id="think">How to think about it &mdash; step by step</h2>
+    <div class="steps">
+      <div class="step"><h4>Name the two queries</h4><p>Top-N players, and 'what's my rank?' &mdash; both in real time. <span class="why">Why:</span> the data structure must do both well.</p></div>
+      <div class="step"><h4>Pick the right tool</h4><p>A sorted set (Redis ZSET) keeps members ordered by score and answers both in log time. <span class="why">Why:</span> it's purpose-built for ranking.</p></div>
+      <div class="step"><h4>Make it durable</h4><p>Snapshot the in-memory set to a database periodically. <span class="why">Why:</span> a restart shouldn't wipe the standings.</p></div>
+      <div class="step"><h4>Handle huge boards</h4><p>At tens of millions, exact rank is costly &mdash; shard by segment or use approximate (percentile) ranks. <span class="why">Why:</span> 'you're in the top 5%' is usually good enough.</p></div>
+      <div class="step"><h4>Name the trade-off</h4><p>Exact ranking (precise, expensive) vs approximate (cheap, fast). <span class="why">Why:</span> match precision to what users actually need.</p></div>
+    </div>
+
+    <h2 id="reqs">1 &middot; Requirements</h2>
+<p><strong>Functional:</strong> update a player&#8217;s score; get top-N; get a player&#8217;s rank and neighbors. <strong>Non-functional:</strong> real-time, scalable to millions of players.</p>    <h2 id="arch">2 &middot; Architecture</h2>
+    <figure class="diagram">
+<svg viewBox="0 0 760 170" role="img" aria-label="Leaderboard architecture"><defs><marker id="m" markerWidth="9" markerHeight="9" refX="7" refY="4.5" orient="auto"><path d="M0,0 L9,4.5 L0,9 z" fill="var(--accent)"/></marker></defs><rect class="svg-box" x="8" y="60" width="96" height="50" rx="9"/><text class="svg-txt" x="56" y="83" text-anchor="middle">Game svc</text><text class="svg-sub" x="56" y="100" text-anchor="middle">score updates</text><rect class="svg-accent" x="126" y="60" width="150" height="50" rx="9"/><text class="svg-txt" x="201" y="83" text-anchor="middle">Leaderboard svc</text><rect class="svg-good" x="300" y="14" width="160" height="46" rx="9"/><text class="svg-txt" x="380" y="35" text-anchor="middle">Redis ZSET</text><text class="svg-sub" x="380" y="52" text-anchor="middle">sorted set, sharded</text><rect class="svg-box" x="300" y="104" width="160" height="46" rx="9"/><text class="svg-txt" x="380" y="125" text-anchor="middle">Snapshot DB</text><text class="svg-sub" x="380" y="142" text-anchor="middle">durable history</text><line class="svg-line-acc" x1="104" y1="85" x2="124" y2="85" marker-end="url(#m)"/><line class="svg-line-acc" x1="276" y1="76" x2="298" y2="40" marker-end="url(#m)"/><line class="svg-line-acc" x1="276" y1="94" x2="298" y2="124" marker-end="url(#m)"/><text class="svg-sub" x="600" y="60" text-anchor="middle">ZADD score; ZREVRANGE for top-N;</text><text class="svg-sub" x="600" y="78" text-anchor="middle">ZRANK for a player&#8217;s position</text></svg>
+      <figcaption>Scores live in a sorted set keyed by score: <code>ZADD</code> to update, <code>ZREVRANGE</code> for the top-N, <code>ZRANK</code> for a player&#8217;s position &mdash; all O(log n). Shard by game/segment; snapshot to a DB for durability and history.</figcaption>
+    </figure>
+    <h2 id="hard">3 &middot; The hard parts</h2>
+    <ul class="clean">
+      <li><strong>Exact rank at scale</strong>: ZRANK over tens of millions is costly; shard by segment, or use approximate ranks (percentile buckets) for huge boards.</li>
+      <li><strong>Hot board</strong>: a single popular leaderboard concentrates writes &mdash; shard and aggregate, or batch updates.</li>
+      <li><strong>Durability</strong>: the ZSET is in memory; snapshot periodically so a restart doesn&#8217;t lose standings.</li>
+    </ul>
+    <h2 id="trade">4 &middot; Trade-offs</h2>
+    <ul class="clean">
+      <li>Exact ranking (precise, costly) vs approximate (cheap, good enough for big boards).</li>
+      <li>Real-time updates vs batched (less load, slight lag).</li>
+    </ul>
+        <h2 id="subsystems">Key sub-systems</h2>
+    <ul class="clean">
+      <li><strong>Score API</strong> &mdash; ingests updates.</li>
+      <li><strong>Sorted set</strong> &mdash; Redis ZSET for rank/top-N.</li>
+      <li><strong>Sharding</strong> &mdash; by game/segment.</li>
+      <li><strong>Snapshot store</strong> &mdash; durable history.</li>
+      <li><strong>Read API</strong> &mdash; top-N, my-rank, neighbors.</li>
+    </ul>
+    <h2 id="bottlenecks">Bottlenecks &amp; what to optimize next</h2>
+    <ul class="clean">
+      <li>Exact global rank at tens of millions is the bottleneck &mdash; shard or approximate.</li>
+      <li>A single popular board concentrates writes &mdash; shard and aggregate or batch updates.</li>
+    </ul>
+    <h2 id="levels">Senior &middot; Staff &middot; Principal</h2>
+    <div class="ladder">
+      <div class="lv s"><span class="tier">Senior</span><p>Uses a sorted set for top-N and rank queries.</p></div>
+      <div class="lv t"><span class="tier">Staff</span><p>Handles durability snapshots, sharding, and approximate ranks at scale.</p></div>
+      <div class="lv p"><span class="tier">Principal</span><p>Raises anti-cheat, time-windowed boards (daily/weekly), and global multi-region aggregation.</p></div>
+    </div>
+    <h2 id="faq">Common follow-up questions</h2>
+    <details class="qa"><summary>How do you get a player's exact rank fast?</summary><div class="body"><p>A sorted set answers rank in O(log n); at extreme scale, shard by segment or serve approximate percentile ranks.</p></div></details>
+    <details class="qa"><summary>How do you make it durable?</summary><div class="body"><p>The ZSET is in memory; snapshot to a database periodically so a restart doesn't lose standings.</p></div></details>
+    <details class="qa"><summary>How do you handle cheating?</summary><div class="body"><p>Validate score updates server-side, rate-limit, and run anomaly detection before they hit the board.</p></div></details>
+
+    <div class="recap"><span class="label">&#129504; Remember it</span>
+      <p>Leaderboard = <span class="hook">sorted set (ZSET) for top-N + rank</span>; approximate at huge scale.</p>
+      <ul>
+        <li>ZADD / ZREVRANGE / ZRANK give O(log n) ops.</li>
+        <li>Shard by segment; snapshot for durability.</li>
+        <li>Approximate ranks when exact is too costly.</li>
+      </ul>
+    </div>
+
+    <div class="pagenav">
+      <a class="card" href="sd-notifications.html"><span class="tag">&larr; Previous</span><h3>Notifications</h3></a>
+      <a class="card" href="sd-job-scheduler.html"><span class="tag">Next &rarr;</span><h3>Job Scheduler</h3></a>
+    </div>
+  </main>
+</div></div>
+<script src="assets/js/main.js"></script>
+</body>
+</html>

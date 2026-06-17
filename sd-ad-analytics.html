@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="warm">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Design an Ad-Click / Event Analytics Pipeline — Director's Edge</title>
+<meta name="description" content="System design deep-dive: Design an Ad-Click / Event Analytics Pipeline." />
+<link rel="preconnect" href="https://fonts.googleapis.com" /><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="assets/css/styles.css" />
+</head>
+<body data-theme="warm">
+<section class="hero"><span class="eyebrow">System design deep-dive</span><h1>Design an Ad-Click / Event Analytics Pipeline</h1><p class="lead">A deep-dive into counting at huge scale: stream + batch (lambda) processing, exactly-once aggregation for billing, and OLAP serving.</p></section>
+<div class="wrap section"><div class="page-layout">
+  <aside class="toc"><strong>On this page</strong>
+    <a href="#think">How to think (step by step)</a>
+    <a href="#reqs">1 · Requirements</a>
+    <a href="#arch">2 · Architecture</a>
+    <a href="#hard">3 · The hard parts</a>
+    <a href="#trade">4 · Trade-offs</a>
+    <a href="#subsystems">Key sub-systems</a>
+    <a href="#bottlenecks">Bottlenecks</a>
+    <a href="#levels">Senior / Staff / Principal</a>
+    <a href="#faq">Follow-up Q&amp;A</a>
+  </aside>
+  <main>
+    <div class="callout"><span class="label">&#11088; At Google</span><p>Drive it top-down: requirements &rarr; scale &rarr; design &rarr; bottleneck &rarr; trade-offs. Back to <a href="system-design-cases.html">System Design II</a>.</p></div>
+    <div class="story"><span class="label">&#128214; The story</span>
+      <p>When clicks bill money, counting them is anything but trivial: billions of events, duplicates, and stragglers that arrive late and out of order &mdash; yet the totals must be both fast and ultimately exact.</p>
+      <p>The standard answer blends two paths: a real-time stream for instant approximate counts, and a batch path that reconciles for accuracy &mdash; the lambda architecture &mdash; serving from an OLAP store.</p>
+    </div>
+            <div class="tools"><span class="tlabel">&#128295; Typical tools</span><span class="tool">Apache Kafka</span><span class="tool">Apache Flink</span><span class="tool">Apache Spark</span><span class="tool">Apache Druid</span><span class="tool">ClickHouse</span></div>
+
+    <h2 id="think">How to think about it &mdash; step by step</h2>
+    <div class="steps">
+      <div class="step"><h4>Respect that it bills money</h4><p>Counts must be both fast and ultimately exact. <span class="why">Why:</span> approximate-only won't do for billing.</p></div>
+      <div class="step"><h4>Ingest as a stream</h4><p>Events flow into Kafka. <span class="why">Why:</span> a durable log absorbs billions of events and lets you reprocess.</p></div>
+      <div class="step"><h4>Use two paths (lambda)</h4><p>A stream processor gives real-time approximate counts; a batch job reconciles for accuracy. <span class="why">Why:</span> you get speed now and correctness later.</p></div>
+      <div class="step"><h4>Handle messy reality</h4><p>Dedupe by event ID; use watermarks for late, out-of-order events. <span class="why">Why:</span> duplicates and stragglers would corrupt the count.</p></div>
+      <div class="step"><h4>Serve from OLAP</h4><p>Pre-aggregate rollups in a columnar store. <span class="why">Why:</span> dashboards need fast slice-and-dice queries.</p></div>
+    </div>
+
+    <h2 id="reqs">1 &middot; Requirements</h2>
+<p><strong>Functional:</strong> ingest ad/click events; aggregate counts by dimension/time; serve dashboards and billing. <strong>Non-functional:</strong> billions/day, near-real-time, and <em>accurate</em> (it bills money).</p>    <h2 id="arch">2 &middot; Architecture</h2>
+    <figure class="diagram">
+<svg viewBox="0 0 800 180" role="img" aria-label="Ad click analytics pipeline"><defs><marker id="m" markerWidth="9" markerHeight="9" refX="7" refY="4.5" orient="auto"><path d="M0,0 L9,4.5 L0,9 z" fill="var(--accent)"/></marker></defs><rect class="svg-box" x="8" y="64" width="90" height="52" rx="9"/><text class="svg-txt" x="53" y="88" text-anchor="middle">Events</text><text class="svg-sub" x="53" y="105" text-anchor="middle">clicks</text><rect class="svg-accent2" x="118" y="64" width="110" height="52" rx="9"/><text class="svg-txt" x="173" y="88" text-anchor="middle">Kafka</text><text class="svg-sub" x="173" y="105" text-anchor="middle">ingest</text><rect class="svg-accent" x="248" y="12" width="150" height="44" rx="9"/><text class="svg-txt" x="323" y="32" text-anchor="middle">Stream proc</text><text class="svg-sub" x="323" y="49" text-anchor="middle">Flink: real-time</text><rect class="svg-box" x="248" y="118" width="150" height="44" rx="9"/><text class="svg-txt" x="323" y="138" text-anchor="middle">Batch proc</text><text class="svg-sub" x="323" y="155" text-anchor="middle">Spark: reconcile</text><rect class="svg-good" x="420" y="64" width="150" height="52" rx="9"/><text class="svg-txt" x="495" y="88" text-anchor="middle">OLAP store</text><text class="svg-sub" x="495" y="105" text-anchor="middle">Druid/ClickHouse</text><rect class="svg-box" x="590" y="64" width="160" height="52" rx="9"/><text class="svg-txt" x="670" y="88" text-anchor="middle">Dashboards / billing</text><text class="svg-sub" x="670" y="105" text-anchor="middle">queries</text><line class="svg-line-acc" x1="98" y1="90" x2="116" y2="90" marker-end="url(#m)"/><line class="svg-line-acc" x1="228" y1="82" x2="246" y2="34" marker-end="url(#m)"/><line class="svg-line-acc" x1="228" y1="98" x2="246" y2="140" marker-end="url(#m)"/><line class="svg-line-acc" x1="398" y1="34" x2="418" y2="80" marker-end="url(#m)"/><line class="svg-line-acc" x1="398" y1="140" x2="418" y2="100" marker-end="url(#m)"/><line class="svg-line-acc" x1="570" y1="90" x2="588" y2="90" marker-end="url(#m)"/></svg>
+      <figcaption>Events stream into Kafka. A stream processor (Flink) computes real-time aggregates; a batch processor (Spark) recomputes for accuracy (lambda/kappa). Results land in an OLAP store (Druid/ClickHouse) that powers dashboards and billing.</figcaption>
+    </figure>
+    <h2 id="hard">3 &middot; The hard parts</h2>
+    <ul class="clean">
+      <li><strong>Accurate counting</strong>: dedupe (event IDs) and handle late/out-of-order events with watermarks &amp; windows; exactly-once for billing.</li>
+      <li><strong>Real-time vs accurate</strong>: the stream gives speed (approximate); the batch path gives the authoritative number.</li>
+      <li><strong>Cardinality</strong>: pre-aggregate rollups by common dimensions to keep queries fast.</li>
+    </ul>
+    <h2 id="trade">4 &middot; Trade-offs</h2>
+    <ul class="clean">
+      <li>Real-time (fast, approximate) vs batch (accurate, delayed) &mdash; lambda blends both.</li>
+      <li>Exactly-once (correct, costly) vs at-least-once + dedup.</li>
+    </ul>
+        <h2 id="subsystems">Key sub-systems</h2>
+    <ul class="clean">
+      <li><strong>Event ingest</strong> &mdash; Kafka.</li>
+      <li><strong>Stream processor</strong> &mdash; Flink, real-time aggregates.</li>
+      <li><strong>Batch processor</strong> &mdash; Spark, reconciliation.</li>
+      <li><strong>OLAP store</strong> &mdash; Druid/ClickHouse.</li>
+      <li><strong>Dedup/idempotency</strong> &mdash; for billing accuracy.</li>
+    </ul>
+    <h2 id="bottlenecks">Bottlenecks &amp; what to optimize next</h2>
+    <ul class="clean">
+      <li>Accuracy under duplicates/late events is the challenge &mdash; dedup + watermarks; batch reconciles.</li>
+      <li>Cardinality of dimensions &mdash; pre-aggregate rollups to keep queries fast.</li>
+    </ul>
+    <h2 id="levels">Senior &middot; Staff &middot; Principal</h2>
+    <div class="ladder">
+      <div class="lv s"><span class="tier">Senior</span><p>Builds a stream pipeline into an OLAP store.</p></div>
+      <div class="lv t"><span class="tier">Staff</span><p>Handles dedup, late/out-of-order events, and the lambda (stream+batch) split.</p></div>
+      <div class="lv p"><span class="tier">Principal</span><p>Raises exactly-once for billing, anomaly/fraud detection, and cost of high-cardinality analytics.</p></div>
+    </div>
+    <h2 id="faq">Common follow-up questions</h2>
+    <details class="qa"><summary>How do you count accurately for billing?</summary><div class="body"><p>Dedup by event ID and reconcile with a batch path; real-time gives speed, batch gives the authoritative number (lambda architecture).</p></div></details>
+    <details class="qa"><summary>How do you handle late events?</summary><div class="body"><p>Watermarks and windowing in the stream processor so stragglers land in the correct time bucket.</p></div></details>
+    <details class="qa"><summary>Why an OLAP store?</summary><div class="body"><p>Dashboards need fast slice-and-dice over huge data; columnar OLAP engines pre-aggregate rollups for that.</p></div></details>
+
+    <div class="recap"><span class="label">&#129504; Remember it</span>
+      <p>Ad analytics = <span class="hook">stream + batch (lambda), exactly-once for billing</span>.</p>
+      <ul>
+        <li>Kafka &rarr; Flink (real-time) + Spark (reconcile) &rarr; OLAP.</li>
+        <li>Dedupe + watermarks handle duplicates &amp; late events.</li>
+        <li>Pre-aggregate rollups for fast queries.</li>
+      </ul>
+    </div>
+
+    <div class="pagenav">
+      <a class="card" href="sd-food-delivery.html"><span class="tag">&larr; Previous</span><h3>Food Delivery</h3></a>
+      <a class="card" href="sd-geo-search.html"><span class="tag">Next &rarr;</span><h3>Geospatial Search</h3></a>
+    </div>
+  </main>
+</div></div>
+<script src="assets/js/main.js"></script>
+</body>
+</html>

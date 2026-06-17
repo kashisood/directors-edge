@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="warm">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Design a Key-Value Store (DynamoDB / Cassandra) — Director's Edge</title>
+<meta name="description" content="System design deep-dive: Design a Key-Value Store (DynamoDB / Cassandra) — requirements, capacity, API, data model, architecture diagram, scaling, failure, trade-offs." />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="assets/css/styles.css" />
+</head>
+<body data-theme="warm">
+<section class="hero">
+  <span class="eyebrow">System design deep-dive</span>
+  <h1>Design a Key-Value Store (DynamoDB / Cassandra)</h1>
+  <p class="lead">A deep-dive into the highly-available distributed store: consistent hashing, quorum reads/writes, version vectors for conflicts, and the CAP trade-off in action.</p>
+</section>
+<div class="wrap section">
+<div class="page-layout">
+  <aside class="toc"><strong>On this page</strong>
+    <a href="#think">How to think (step by step)</a>
+    <a href="#reqs">1 · Requirements</a>
+    <a href="#capacity">2 · Capacity</a>
+    <a href="#api">3 · API</a>
+    <a href="#data">4 · Data model</a>
+    <a href="#arch">5 · Architecture</a>
+    <a href="#hard">6 · The hard parts</a>
+    <a href="#scale">7 · Scaling</a>
+    <a href="#tradeoffs">8 · Trade-offs</a>
+    <a href="#subsystems">Key sub-systems</a>
+    <a href="#bottlenecks">Bottlenecks</a>
+    <a href="#levels">Senior / Staff / Principal</a>
+    <a href="#faq">Follow-up Q&amp;A</a>
+  </aside>
+  <main>
+    <div class="callout"><span class="label">&#11088; At Google</span><p>Drive it top-down: requirements &rarr; scale &rarr; design &rarr; bottleneck &rarr; trade-offs, narrating assumptions. Back to <a href="system-design-cases.html">System Design II</a>.</p></div>
+    <div class="story"><span class="label">&#128214; The story</span>
+      <p>This is the system that taught the industry the CAP trade-off in the flesh. The goal: stay writable and fast even when nodes and networks fail &mdash; which means giving up instant global consistency.</p>
+      <p>The machinery is elegant: a consistent-hash ring spreads keys with no leader, each key is replicated N times, and tunable read/write quorums let every caller dial the consistency-versus-latency knob themselves. Conflicts are detected with version vectors and resolved deliberately.</p>
+    </div>
+
+            <div class="tools"><span class="tlabel">&#128295; Typical tools</span><span class="tool">DynamoDB</span><span class="tool">Cassandra</span><span class="tool">ScyllaDB</span></div>
+
+    <h2 id="think">How to think about it &mdash; step by step</h2>
+    <div class="steps">
+      <div class="step"><h4>Accept failure as normal</h4><p>Thousands of nodes means something is always down. <span class="why">Why:</span> the system must stay writable through failures.</p></div>
+      <div class="step"><h4>Spread data with a hash ring</h4><p>Consistent hashing places keys on a ring; no leader. <span class="why">Why:</span> any node can serve, and membership changes move few keys.</p></div>
+      <div class="step"><h4>Replicate with quorums</h4><p>N copies; require R reads + W writes to agree, with R+W&gt;N for strong-ish reads. <span class="why">Why:</span> callers tune consistency vs latency per request.</p></div>
+      <div class="step"><h4>Resolve conflicts</h4><p>Version vectors detect divergence; resolve by last-writer-wins or return siblings. <span class="why">Why:</span> always-writable means two writes can clash.</p></div>
+      <div class="step"><h4>Name the CAP choice</h4><p>It favors availability + eventual consistency. <span class="why">Why:</span> stating it shows you understand the core trade-off.</p></div>
+    </div>
+
+    <h2 id="reqs">1 &middot; Requirements</h2>
+    <p><strong>Functional:</strong> <code>get(key)</code> / <code>put(key, value)</code> at massive scale, across regions. <strong>Non-functional:</strong> always-writable (high availability), horizontally scalable, low latency, and tunable consistency. This is the Dynamo/Cassandra design &mdash; the textbook study in the CAP trade-off.</p>
+    <h2 id="capacity">2 &middot; Capacity</h2>
+    <p>Designed for petabytes across thousands of commodity nodes with no single point of failure &mdash; nodes fail constantly, so the system must treat failure as normal, not exceptional.</p>
+    <h2 id="api">3 &middot; API</h2>
+    <ul class="clean">
+      <li><code>get(key)</code> &rarr; value(s) + version; may return siblings if there was a conflict.</li>
+      <li><code>put(key, value, context)</code> &mdash; context carries the version vector for conflict detection.</li>
+    </ul>
+    <h2 id="data">4 &middot; Data model</h2>
+    <ul class="clean">
+      <li>Opaque <code>key &rarr; value</code> (bytes); each value tagged with a <strong>version vector</strong> (or timestamp) for conflict resolution.</li>
+      <li>The key space is mapped onto a <strong>consistent-hash ring</strong> of virtual nodes.</li>
+    </ul>
+    <h2 id="arch">5 &middot; Architecture</h2>
+    <figure class="diagram">
+      <svg viewBox="0 0 820 230" role="img" aria-label="A coordinator routes a key via consistent hashing to N replica nodes on a ring, using quorum reads and writes">
+        <defs><marker id="arKV" markerWidth="9" markerHeight="9" refX="7" refY="4.5" orient="auto"><path d="M0,0 L9,4.5 L0,9 z" fill="var(--accent)"/></marker></defs>
+        <rect class="svg-box" x="8" y="96" width="84" height="50" rx="9"/><text class="svg-txt" x="50" y="126" text-anchor="middle">Client</text>
+        <rect class="svg-accent" x="112" y="96" width="130" height="50" rx="9"/><text class="svg-txt" x="177" y="118" text-anchor="middle">Coordinator</text><text class="svg-sub" x="177" y="134" text-anchor="middle">any node</text>
+        <circle class="svg-line" cx="560" cy="115" r="92" fill="none"/>
+        <text class="svg-sub" x="560" y="115" text-anchor="middle">consistent-hash ring</text>
+        <rect class="svg-good" x="520" y="6" width="80" height="38" rx="8"/><text class="svg-sub" x="560" y="30" text-anchor="middle">node (replica 1)</text>
+        <rect class="svg-good" x="660" y="96" width="80" height="38" rx="8"/><text class="svg-sub" x="700" y="120" text-anchor="middle">replica 2</text>
+        <rect class="svg-good" x="520" y="186" width="80" height="38" rx="8"/><text class="svg-sub" x="560" y="210" text-anchor="middle">replica 3</text>
+        <rect class="svg-box" x="380" y="96" width="80" height="38" rx="8"/><text class="svg-sub" x="420" y="120" text-anchor="middle">node</text>
+        <g class="svg-line-acc">
+          <line x1="92" y1="121" x2="110" y2="121" marker-end="url(#arKV)"/>
+          <line x1="242" y1="118" x2="378" y2="115" marker-end="url(#arKV)"/>
+          <line x1="460" y1="108" x2="518" y2="35" marker-end="url(#arKV)"/>
+          <line x1="460" y1="115" x2="658" y2="115" marker-end="url(#arKV)"/>
+          <line x1="460" y1="122" x2="518" y2="195" marker-end="url(#arKV)"/>
+        </g>
+      </svg>
+      <figcaption>Any node can act as <strong>coordinator</strong>: it hashes the key to a position on the ring and routes to the N replica nodes that own it. A write succeeds when W replicas ack; a read waits for R replicas. Choosing <code>R + W &gt; N</code> gives strong-ish reads; smaller values give lower latency and higher availability.</figcaption>
+    </figure>
+    <h2 id="hard">6 &middot; The hard parts</h2>
+    <ul class="clean">
+      <li><strong>Partitioning</strong>: consistent hashing spreads keys evenly and minimizes reshuffling when nodes join/leave; virtual nodes smooth out hotspots.</li>
+      <li><strong>Replication &amp; quorum</strong>: N copies; tunable R/W quorums let each caller trade consistency for latency.</li>
+      <li><strong>Conflicts</strong>: with always-writable semantics, two writes can diverge &mdash; version vectors detect it; resolve by last-writer-wins or by returning siblings to the app.</li>
+      <li><strong>Failure handling</strong>: gossip spreads membership; hinted handoff lets a healthy node temporarily accept a downed node&#8217;s writes; read-repair fixes stale replicas.</li>
+    </ul>
+        <div class="example" data-ex-added><span class="label">&#128205; Real example &mdash; quorum reads/writes (R + W &gt; N)</span>
+      <p>Replicate every key to <strong>N=3</strong> nodes. You don&#8217;t need all 3 to answer &mdash; you need a <em>quorum</em>. Pick how many must acknowledge a write (W) and how many you read from (R):</p>
+      <pre class="code">N = 3 replicas
+
+W = 2, R = 2   &rarr;  R + W = 4 &gt; 3   &rarr;  STRONG: any read overlaps the latest write on &ge;1 node
+   write "x=5": node-A ok, node-B ok  (2 acks, done) &mdash; node-C catches up later
+   read  "x":   ask node-B + node-C  &rarr; node-B has 5 (newest) &rarr; return 5  &#10003;
+
+W = 1, R = 1   &rarr;  R + W = 2 &lt; 3   &rarr;  FAST but stale reads possible (eventual consistency)</pre>
+      <p><strong>What this teaches:</strong> if <code>R + W &gt; N</code>, the set of nodes you read always overlaps the set you wrote, so you&#8217;re guaranteed to see the latest value &mdash; that&#8217;s tunable strong consistency. Lowering R or W makes reads/writes faster and keeps working when nodes are down, but you may read stale data. This single knob (used by DynamoDB and Cassandra) is how you trade consistency for availability and latency &mdash; the practical face of the CAP theorem.</p>
+    </div>
+
+    <h2 id="scale">7 &middot; Scaling &amp; failure</h2>
+    <ul class="clean">
+      <li>Add nodes &rarr; the ring rebalances a fraction of keys; throughput and capacity scale linearly.</li>
+      <li>No leader, no single point of failure &mdash; any node can coordinate; node loss just shifts ownership.</li>
+    </ul>
+        <div class="example" data-ex-added><span class="label">&#128205; Real example &mdash; WAL + LSM-tree (how writes survive a crash and stay fast)</span>
+      <p>Write-heavy stores (Cassandra, RocksDB, LevelDB) don&#8217;t update rows in place &mdash; random disk writes are slow. Instead every write is appended twice: once to a crash-safe log, once to an in-memory table that later flushes to disk in sorted order:</p>
+      <pre class="code">PUT user:7 = {plan:"pro"}
+  1) append to WAL (write-ahead log) on disk     &mdash; durable instantly, sequential = fast
+  2) write into MemTable (sorted map in RAM)
+
+MemTable fills up  &rarr;  flush to disk as an immutable SSTable (sorted file)
+
+  SSTable-3 (newest)  user:7 = {plan:"pro"}
+  SSTable-2           user:7 = {plan:"free"}   &larr; older, shadowed
+  SSTable-1           user:3 = ...
+
+read user:7  &rarr; check MemTable, then newest SSTable first &rarr; returns {plan:"pro"}
+crash before flush? &rarr; replay the WAL on restart, nothing lost.
+compaction runs in background &rarr; merges SSTables, drops shadowed/deleted keys.</pre>
+      <p><strong>What this teaches:</strong> the <strong>WAL</strong> makes a write durable the instant it&#8217;s appended (sequential writes are cheap), and the <strong>LSM-tree</strong> turns random updates into fast in-memory writes plus periodic sorted flushes. Reads check newest-first, so the latest value wins; <strong>compaction</strong> later merges files and reclaims space. The trade vs a B-tree: blazing writes and great compression, but reads may touch several files (mitigated by Bloom filters per SSTable) and compaction costs background I/O.</p>
+    </div>
+
+    <h2 id="tradeoffs">8 &middot; Trade-offs</h2>
+    <ul class="clean">
+      <li><strong>CAP</strong>: favors Availability + Partition-tolerance with <em>eventual</em> consistency.</li>
+      <li>Tunable R/W: strong reads (R+W&gt;N, slower) vs fast reads (small R, possibly stale).</li>
+      <li>Conflict resolution: last-writer-wins (simple, can lose data) vs siblings (correct, app must merge).</li>
+    </ul>
+        <h2 id="subsystems">Key sub-systems</h2>
+    <ul class="clean">
+      <li><strong>Coordinator</strong> &mdash; any node routes requests.</li>
+      <li><strong>Hash ring</strong> &mdash; consistent hashing + virtual nodes.</li>
+      <li><strong>Replicas</strong> &mdash; N copies, quorum R/W.</li>
+      <li><strong>Anti-entropy</strong> &mdash; gossip, hinted handoff, read-repair.</li>
+      <li><strong>Conflict resolution</strong> &mdash; version vectors.</li>
+    </ul>
+    <h2 id="bottlenecks">Bottlenecks &amp; what to optimize next</h2>
+    <ul class="clean">
+      <li>Availability under failure is the goal &mdash; quorums + hinted handoff keep writes flowing.</li>
+      <li>Hot partitions &mdash; virtual nodes spread load; tune R/W per workload.</li>
+    </ul>
+    <h2 id="levels">Senior &middot; Staff &middot; Principal</h2>
+    <div class="ladder">
+      <div class="lv s"><span class="tier">Senior</span><p>Explains partitioning, replication, and tunable consistency.</p></div>
+      <div class="lv t"><span class="tier">Staff</span><p>Handles quorums, conflict resolution, and failure recovery.</p></div>
+      <div class="lv p"><span class="tier">Principal</span><p>Raises cross-region replication, secondary indexes, and consistency-model guarantees for clients.</p></div>
+    </div>
+    <h2 id="faq">Common follow-up questions</h2>
+    <details class="qa"><summary>How does it stay available when nodes fail?</summary><div class="body"><p>Quorum writes (W replicas ack), hinted handoff (a healthy node temporarily covers a downed one), and gossip-based membership.</p></div></details>
+    <details class="qa"><summary>How do you tune consistency?</summary><div class="body"><p>Pick R and W; R+W&gt;N gives strong-ish reads, smaller values give lower latency and higher availability.</p></div></details>
+    <details class="qa"><summary>How are write conflicts resolved?</summary><div class="body"><p>Version vectors detect divergence; resolve via last-writer-wins (simple, can lose data) or return siblings for the app to merge.</p></div></details>
+
+    <div class="recap"><span class="label">&#129504; Remember it</span>
+      <p>KV store = <span class="hook">availability + eventual consistency on a hash ring</span>, tunable per call.</p>
+      <ul>
+        <li>Consistent hashing partitions keys; no leader, no SPOF.</li>
+        <li>N replicas + tunable R/W quorums (R+W&gt;N for strong reads).</li>
+        <li>Version vectors detect conflicts; gossip + hinted handoff survive failure.</li>
+      </ul>
+    </div>
+
+    <div class="pagenav">
+      <a class="card" href="sd-ticket-booking.html"><span class="tag">&larr; Previous</span><h3>Ticket Booking</h3></a>
+      <a class="card" href="sd-search-engine.html"><span class="tag">Next deep-dive &rarr;</span><h3>Search Engine</h3></a>
+    </div>
+  </main>
+</div>
+</div>
+<script src="assets/js/main.js"></script>
+</body>
+</html>

@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="warm">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Design Nearby / Geospatial Search (Maps, Yelp) — Director's Edge</title>
+<meta name="description" content="System design deep-dive: Design Nearby / Geospatial Search (Maps, Yelp)." />
+<link rel="preconnect" href="https://fonts.googleapis.com" /><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="assets/css/styles.css" />
+</head>
+<body data-theme="warm">
+<section class="hero"><span class="eyebrow">System design deep-dive</span><h1>Design Nearby / Geospatial Search (Maps, Yelp)</h1><p class="lead">A deep-dive into proximity queries at scale: geohash / QuadTree / S2 indexing so 'what's near me' answers fast across uneven density.</p></section>
+<div class="wrap section"><div class="page-layout">
+  <aside class="toc"><strong>On this page</strong>
+    <a href="#think">How to think (step by step)</a>
+    <a href="#reqs">1 · Requirements</a>
+    <a href="#arch">2 · Architecture</a>
+    <a href="#hard">3 · The hard parts</a>
+    <a href="#trade">4 · Trade-offs</a>
+    <a href="#subsystems">Key sub-systems</a>
+    <a href="#bottlenecks">Bottlenecks</a>
+    <a href="#levels">Senior / Staff / Principal</a>
+    <a href="#faq">Follow-up Q&amp;A</a>
+  </aside>
+  <main>
+    <div class="callout"><span class="label">&#11088; At Google</span><p>Drive it top-down: requirements &rarr; scale &rarr; design &rarr; bottleneck &rarr; trade-offs. Back to <a href="system-design-cases.html">System Design II</a>.</p></div>
+    <div class="story"><span class="label">&#128214; The story</span>
+      <p>&lsquo;Find restaurants within 2 km&rsquo; sounds easy until you have millions of places and can&#8217;t scan them all. You need an index where geography itself is the key &mdash; nearby points stored together.</p>
+      <p>That&#8217;s geohashing (or QuadTree/S2): encode location so a shared prefix means physical closeness, then query the relevant cell plus its neighbors. Cell size trades precision against index size.</p>
+    </div>
+            <div class="tools"><span class="tlabel">&#128295; Typical tools</span><span class="tool">Elasticsearch (geo)</span><span class="tool">PostGIS</span><span class="tool">Redis (Geo)</span><span class="tool">Google S2</span></div>
+
+    <h2 id="think">How to think about it &mdash; step by step</h2>
+    <div class="steps">
+      <div class="step"><h4>State the impossible-by-brute-force part</h4><p>You can't scan millions of places per query. <span class="why">Why:</span> it forces a spatial index.</p></div>
+      <div class="step"><h4>Make geography the key</h4><p>Geohash/QuadTree/S2 give nearby places the same cell key. <span class="why">Why:</span> 'near me' becomes 'look up my cell'.</p></div>
+      <div class="step"><h4>Query the neighborhood</h4><p>Check the user's cell plus its neighbors. <span class="why">Why:</span> a place just over a cell border must still be found.</p></div>
+      <div class="step"><h4>Adapt to density</h4><p>QuadTree/S2 subdivide where it's crowded (cities). <span class="why">Why:</span> fixed cells are too coarse downtown and too fine in the countryside.</p></div>
+      <div class="step"><h4>Name the trade-off</h4><p>Fine cells = precise but bigger index; coarse = cheap but rough. <span class="why">Why:</span> pick based on your density.</p></div>
+    </div>
+
+    <h2 id="reqs">1 &middot; Requirements</h2>
+<p><strong>Functional:</strong> given a location, return points of interest within a radius/region, ranked. <strong>Non-functional:</strong> low latency, global scale, read-heavy, handle uneven density (cities vs countryside).</p>    <h2 id="arch">2 &middot; Architecture</h2>
+    <figure class="diagram">
+<svg viewBox="0 0 760 170" role="img" aria-label="Geospatial nearby search"><defs><marker id="m" markerWidth="9" markerHeight="9" refX="7" refY="4.5" orient="auto"><path d="M0,0 L9,4.5 L0,9 z" fill="var(--accent)"/></marker></defs><rect class="svg-box" x="8" y="60" width="84" height="50" rx="9"/><text class="svg-txt" x="50" y="83" text-anchor="middle">Client</text><text class="svg-sub" x="50" y="100" text-anchor="middle">lat/lng</text><rect class="svg-accent" x="112" y="60" width="140" height="50" rx="9"/><text class="svg-txt" x="182" y="83" text-anchor="middle">Geo query svc</text><text class="svg-sub" x="182" y="100" text-anchor="middle">cell + neighbors</text><rect class="svg-good" x="272" y="14" width="170" height="46" rx="9"/><text class="svg-txt" x="357" y="35" text-anchor="middle">Geo index</text><text class="svg-sub" x="357" y="52" text-anchor="middle">geohash / QuadTree / S2</text><rect class="svg-box" x="272" y="104" width="170" height="46" rx="9"/><text class="svg-txt" x="357" y="125" text-anchor="middle">POI store</text><text class="svg-sub" x="357" y="142" text-anchor="middle">attributes</text><rect class="svg-accent2" x="470" y="60" width="140" height="50" rx="9"/><text class="svg-txt" x="540" y="83" text-anchor="middle">Region cache</text><text class="svg-sub" x="540" y="100" text-anchor="middle">hot areas</text><line class="svg-line-acc" x1="92" y1="85" x2="110" y2="85" marker-end="url(#m)"/><line class="svg-line-acc" x1="252" y1="76" x2="270" y2="40" marker-end="url(#m)"/><line class="svg-line-acc" x1="252" y1="94" x2="270" y2="124" marker-end="url(#m)"/><line class="svg-line-acc" x1="252" y1="82" x2="468" y2="82" marker-end="url(#m)"/></svg>
+      <figcaption>Locations are indexed by a geospatial scheme (geohash/QuadTree/S2) so nearby POIs share a cell key. A query computes the user&#8217;s cell and its neighbors, fetches candidates, ranks by distance/relevance, and caches hot regions.</figcaption>
+    </figure>
+        <div class="example" data-ex-added><span class="label">&#128205; Real example &mdash; a geohash</span>
+      <p>Take San Francisco &mdash; latitude <code>37.7749</code>, longitude <code>-122.4194</code>. Encode it as a <strong>geohash</strong> and you get a short string where each extra character zooms into a smaller box:</p>
+      <pre class="code">37.7749, -122.4194  &rarr;  geohash  9q8yyk8ytpxr
+
+9q          &rarr;  ~1250 km box  (most of N. California / Nevada)
+9q8yy       &rarr;  ~2.4 km box   (central San Francisco)
+9q8yyk8     &rarr;  ~150 m box    (a couple of city blocks)
+9q8yyk8ytpxr&rarr;  ~1 m box      (basically a point)</pre>
+      <p><strong>What this teaches:</strong> nearby places share a geohash <em>prefix</em>, so &ldquo;find things near me&rdquo; becomes &ldquo;find rows whose geohash starts with <code>9q8yy</code>&rdquo; &mdash; a cheap index lookup instead of scanning every point. One catch: two close points can sit just across a cell boundary with different prefixes, so you always query the matching cell <em>plus its 8 neighbours</em>, then filter by exact distance. (Values are approximate &mdash; geohash precision is well defined per length.)</p>
+    </div>
+
+    <h2 id="hard">3 &middot; The hard parts</h2>
+    <ul class="clean">
+      <li><strong>Indexing</strong>: geohash gives fixed-size cells (simple); QuadTree/S2 subdivide where density is high (adapts to cities).</li>
+      <li><strong>Boundaries</strong>: a point near a cell edge needs neighbor cells too &mdash; always query the ring of neighbors.</li>
+      <li><strong>Ranking</strong>: distance plus business signals (rating, popularity).</li>
+    </ul>
+    <h2 id="trade">4 &middot; Trade-offs</h2>
+    <ul class="clean">
+      <li>Fine cells (precise, bigger index, more lookups) vs coarse (cheap, less precise).</li>
+      <li>Geohash (simple) vs QuadTree/S2 (density-adaptive, complex).</li>
+    </ul>
+        <h2 id="subsystems">Key sub-systems</h2>
+    <ul class="clean">
+      <li><strong>Geo index</strong> &mdash; geohash/QuadTree/S2 cells.</li>
+      <li><strong>Query service</strong> &mdash; cell + neighbor lookup.</li>
+      <li><strong>POI store</strong> &mdash; attributes/metadata.</li>
+      <li><strong>Ranking</strong> &mdash; distance + business signals.</li>
+      <li><strong>Region cache</strong> &mdash; hot areas.</li>
+    </ul>
+    <h2 id="bottlenecks">Bottlenecks &amp; what to optimize next</h2>
+    <ul class="clean">
+      <li>Scanning all points is impossible &mdash; the spatial index makes 'near me' a cell lookup.</li>
+      <li>Uneven density &mdash; QuadTree/S2 subdivide where it's crowded.</li>
+    </ul>
+    <h2 id="levels">Senior &middot; Staff &middot; Principal</h2>
+    <div class="ladder">
+      <div class="lv s"><span class="tier">Senior</span><p>Builds a geospatial index and proximity queries.</p></div>
+      <div class="lv t"><span class="tier">Staff</span><p>Handles boundary cases, density adaptation, and ranking.</p></div>
+      <div class="lv p"><span class="tier">Principal</span><p>Raises routing/road-network distance vs straight-line, real-time POI updates, and global tiling.</p></div>
+    </div>
+    <h2 id="faq">Common follow-up questions</h2>
+    <details class="qa"><summary>How do you query 'within 2km' without scanning everything?</summary><div class="body"><p>Index by geohash/QuadTree so nearby places share a cell; query the user's cell plus neighbors and filter by exact distance.</p></div></details>
+    <details class="qa"><summary>How do you handle dense cities vs sparse areas?</summary><div class="body"><p>QuadTree/S2 subdivide cells where density is high, so each cell holds a manageable number of points.</p></div></details>
+    <details class="qa"><summary>Straight-line vs road distance?</summary><div class="body"><p>Cells give candidates by straight-line proximity; a routing service computes true travel distance/time for ranking.</p></div></details>
+
+    <div class="recap"><span class="label">&#129504; Remember it</span>
+      <p>Geo search = <span class="hook">geohash/QuadTree index; query cell + neighbors</span>.</p>
+      <ul>
+        <li>Nearby points share a cell key &mdash; no full scan.</li>
+        <li>Always include neighbor cells for edge cases.</li>
+        <li>Cell size = precision vs cost; S2/QuadTree adapt to density.</li>
+      </ul>
+    </div>
+
+    <div class="pagenav">
+      <a class="card" href="sd-ad-analytics.html"><span class="tag">&larr; Previous</span><h3>Ad Analytics</h3></a>
+      <a class="card" href="sd-observability.html"><span class="tag">Next &rarr;</span><h3>Observability</h3></a>
+    </div>
+  </main>
+</div></div>
+<script src="assets/js/main.js"></script>
+</body>
+</html>

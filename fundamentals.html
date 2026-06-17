@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-theme="dark">
+<html lang="en" data-theme="warm">
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -51,6 +51,14 @@
 
   <!-- CONTENT -->
   <main>
+    <div class="story"><span class="label">&#128214; The story</span>
+      <p>The story of becoming a director is the story of <em>zooming out</em>. The engineer asks &lsquo;can I build it?&rsquo; You learn to ask &lsquo;should we, what will it cost, who runs it, and how will we know it worked?&rsquo;</p>
+      <p>Once you&#8217;re at that altitude, every decision becomes a <em>trade-off</em> rather than a right answer &mdash; and the most senior move in any room is to name the trade-off out loud and pick deliberately.</p>
+      <p>The vocabulary and core concepts here are simply the words that judgment is expressed in. Get fluent in them and you stop sounding like the best engineer and start sounding like the person who&#8217;s accountable.</p>
+    </div>
+
+      <div class="callout"><span class="label">&#11088; At Google</span><p>These fundamentals are your <strong>General Cognitive Ability</strong> and <strong>Role-Related Knowledge</strong> raw material at Google &mdash; the vocabulary and trade-off thinking you reason with out loud. See the <a href="google.html">Google Prep</a> page for the full picture.</p></div>
+
 
     <h2 id="role">What an Engineering Director actually owns</h2>
     <p>The single biggest mistake in director interviews is answering like a senior engineer — going deep on <em>how</em> to build something. Directors are accountable for <strong>outcomes across teams</strong>, not the implementation of any one of them. Your scope is people, systems, and business results, in that order of leverage.</p>
@@ -168,7 +176,7 @@
     <p class="no-results">No questions match your search.</p>
 
     <div data-search-group>
-      <details class="qa" data-searchable>
+      <details class="qa" data-searchable data-level="1">
         <summary>As a director, how do you decide what to work on yourself vs. delegate?<span class="qa-badge core">Core</span></summary>
         <div class="body">
           <p>I delegate by default and reserve my own time for the few things only I can do: setting direction, unblocking across orgs, hiring, and the highest-stakes one-way-door decisions. My test is "does this build the team's capability or just my own throughput?" If doing it myself makes me a bottleneck or robs someone of growth, I delegate it with clear context and let them own the outcome — including the right to do it differently than I would.</p>
@@ -176,14 +184,14 @@
         </div>
       </details>
 
-      <details class="qa" data-searchable>
+      <details class="qa" data-searchable data-level="1">
         <summary>What's the difference between latency and throughput, and why does it matter to a leader?<span class="qa-badge core">Core</span></summary>
         <div class="body">
           <p>Latency is how long a single request takes; throughput is how many we can serve per second. They matter to me because they map to different user pains and different costs. A checkout flow lives and dies on p99 latency, so I'd invest there. A nightly batch job only cares about throughput, so I'd happily add latency to process more per run. The leadership move is making sure the team optimizes the dimension the <em>business</em> cares about, not the one that's most fun to optimize.</p>
         </div>
       </details>
 
-      <details class="qa" data-searchable>
+      <details class="qa" data-searchable data-level="3">
         <summary>Explain CAP theorem to a non-technical executive.<span class="qa-badge deep">Deep</span></summary>
         <div class="body">
           <p>"Imagine our data lives in two data centers. Normally they stay in sync. But if the link between them breaks, we face a choice for that moment: either refuse some requests so nobody sees stale data — that's choosing consistency — or keep serving everyone, accepting that two users might briefly see slightly different data — that's choosing availability. We can't perfectly have both while the link is down. For a bank balance we'd lean toward consistency; for a social feed, availability. We make that choice deliberately, per use case."</p>
@@ -191,26 +199,67 @@
         </div>
       </details>
 
-      <details class="qa" data-searchable>
+      <details class="qa" data-searchable data-level="2">
         <summary>A team wants five-nines (99.999%) availability for an internal admin tool. How do you respond?<span class="qa-badge trap">Trap</span></summary>
         <div class="body">
           <p>I'd push back gently with a question, not a no: "What does an outage of this tool actually cost us, and who feels it?" Five-nines means roughly five minutes of downtime per year and typically multi-region redundancy, on-call rotations, and a large operational tax. For an internal admin tool used in business hours, three-nines is almost certainly the right target, freeing that engineering investment for customer-facing systems. The lesson I'd reinforce with the team: reliability is a cost we choose to pay where it earns its keep, not a vanity number.</p>
         </div>
       </details>
 
-      <details class="qa" data-searchable>
+      <details class="qa" data-searchable data-level="3">
         <summary>When would you choose eventual consistency over strong consistency?<span class="qa-badge deep">Deep</span></summary>
         <div class="body">
           <p>When availability and scale matter more than every reader seeing the absolute latest value instantly — and when the business can tolerate a short convergence window. Think likes, view counts, feeds, product catalogs. I'd keep strong consistency where correctness is non-negotiable: money movement, inventory at the point of sale, anything where a stale read causes a wrong decision. The framing I'd give the team is: "What's the cost of someone reading data that's two seconds old?" If it's near zero, eventual consistency buys us a lot of resilience cheaply.</p>
         </div>
       </details>
 
-      <details class="qa" data-searchable>
+      <details class="qa" data-searchable data-level="1">
         <summary>How do you make decisions when you don't have enough information?<span class="qa-badge core">Core</span></summary>
         <div class="body">
           <p>First I classify the decision: is it reversible or a one-way door? If it's reversible, I'd rather make a good-enough call quickly and learn from reality than wait for certainty that may never come — speed is itself an advantage. If it's a one-way door, I invest in reducing uncertainty: time-boxed spikes, prototypes, talking to customers, or a small reversible experiment to de-risk the irreversible part. I also make my assumptions explicit so we can revisit the decision when they change.</p>
         </div>
       </details>
+      <details class="qa" data-searchable data-level="1">
+        <summary>What does &ldquo;stateless&rdquo; mean and why do you push for it?<span class="qa-badge core">Core</span></summary>
+        <div class="body">
+          <p>A stateless service keeps no client-specific data between requests &mdash; every request carries what it needs, and shared state lives in a database, cache, or object store. I push for it because it makes scaling boring (any instance can serve any request, so we just add nodes behind a load balancer) and failure boring (an instance can die without taking a user&rsquo;s session with it). It also simplifies deploys and autoscaling. The discipline is to externalize session and state deliberately rather than letting it accumulate in memory.</p>
+        </div>
+      </details>
+      <details class="qa" data-searchable data-level="1">
+        <summary>Explain idempotency with a concrete example.<span class="qa-badge core">Core</span></summary>
+        <div class="body">
+          <p>An operation is idempotent if doing it twice has the same effect as doing it once. Classic example: a payment API where the client sends a unique idempotency key &mdash; if the network drops and the client retries, the server recognizes the key and doesn&rsquo;t charge the customer twice. It&rsquo;s essential anywhere you have retries or at-least-once message delivery. As a leader I treat &lsquo;is this idempotent?&rsquo; as a standard design-review question for any write API or consumer.</p>
+        </div>
+      </details>
+      <details class="qa" data-searchable data-level="2">
+        <summary>A senior engineer wants to introduce Kubernetes for a three-service app. How do you respond?<span class="qa-badge trap">Trap</span></summary>
+        <div class="body">
+          <p>I&rsquo;d ask what problem we&rsquo;re solving before what tool we&rsquo;re adopting. Kubernetes is powerful but carries real operational cost &mdash; cluster upgrades, networking, security, on-call expertise. For three services, a managed container platform or even simple VMs may deliver the same outcome at a fraction of the complexity. If we genuinely expect rapid service growth and have (or will hire) the platform skills, it can be the right long-term bet. The trap is adopting heavyweight infrastructure for resume value rather than need; I optimize for total cost of ownership and the team that has to operate it at 2 a.m.</p>
+          <div class="say"><span class="label">Say it like a director</span><p>&ldquo;What&rsquo;s the problem we&rsquo;re solving, and what&rsquo;s the simplest thing that solves it? If Kubernetes is the answer, let&rsquo;s be honest about the operational tax and make sure we&rsquo;re ready to pay it.&rdquo;</p></div>
+        </div>
+      </details>
+      <details class="qa" data-searchable data-level="2">
+        <summary>Your team says &ldquo;we need microservices to scale.&rdquo; React.<span class="qa-badge trap">Trap</span></summary>
+        <div class="body">
+          <p>I&rsquo;d separate the real goal &mdash; independent scaling and team autonomy &mdash; from the chosen solution. Microservices buy those things but charge you in distributed-systems complexity: network failures, data consistency, observability, and deployment overhead. A well-structured modular monolith scales a long way and is far simpler to operate. I&rsquo;d ask which specific component actually needs independent scaling or deployment, and extract just that. &lsquo;Microservices everywhere&rsquo; is usually premature; the right move is to let team and scaling boundaries pull services out as they earn it (org design follows system design).</p>
+        </div>
+      </details>
+      <details class="qa" data-searchable data-level="3">
+        <summary>How do you think about build versus buy?<span class="qa-badge deep">Deep</span></summary>
+        <div class="body">
+          <p>I start by asking whether this is core differentiation or undifferentiated heavy lifting. If it&rsquo;s what makes us special &mdash; our core product logic &mdash; we build and own it. If it&rsquo;s a solved commodity (auth, payments, email, observability), I lean strongly toward buy/rent, because building it ties up our best people maintaining something that doesn&rsquo;t move our needle. I weigh total cost of ownership (not just licence vs salary, but maintenance, security, and opportunity cost), switching costs, and strategic risk of depending on a vendor. The bias is: build the differentiator, buy the rest.</p>
+        </div>
+      </details>
+    </div>
+
+    
+    <div class="recap"><span class="label">&#129504; Remember it</span>
+      <p>Directing is <span class="hook">zooming out from &lsquo;can I build it&rsquo; to &lsquo;should we, and how will we know&rsquo;</span>.</p>
+      <ul>
+        <li>Lead with the trade-off, not a single &lsquo;best&rsquo; answer.</li>
+        <li>Classify decisions: reversible &rarr; move fast; one-way door &rarr; slow down.</li>
+        <li>Speak in metrics (SLO, p99, DORA) &mdash; that&#8217;s the language of judgment.</li>
+      </ul>
     </div>
 
     <div class="pagenav">

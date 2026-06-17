@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="warm">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Cheat Sheet — Director's Edge</title>
+<meta name="description" content="One-page quick reference for engineering leadership interviews: definitions, frameworks, metrics, and say-it-like-a-director one-liners. Printable." />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="assets/css/styles.css" />
+</head>
+<body data-theme="warm">
+
+<section class="hero">
+  <span class="eyebrow">Quick reference</span>
+  <h1>The Cheat Sheet</h1>
+  <p class="lead">Everything that should be reflexive, on one page. Skim it the morning of the interview. Print it or save it as a PDF for offline review.</p>
+  <div class="print-bar">
+    <button class="btn primary" onclick="window.print()">&#128424; Print / Save as PDF</button>
+    <a class="btn" href="prep-path.html">See the study plan &rarr;</a>
+  </div>
+</section>
+<section class="section"><div class="wrap">
+    <div class="story"><span class="label">&#128214; The story</span>
+      <p>This page is the friend who quizzes you in the car on the way to the interview. It isn&#8217;t where you learn &mdash; it&#8217;s where you <em>reactivate</em> what you already know, fast.</p>
+      <p>Skim it the morning of, out loud. If a line doesn&#8217;t instantly unfold into a fuller answer in your head, that&#8217;s your signal to revisit the matching pillar before you go in.</p>
+      <p>Don&#8217;t cram new material here; trust your preparation and use this to make the vocabulary feel warm and ready.</p>
+    </div>
+</div></section>
+
+<div class="section">
+
+  <h2>System design</h2>
+  <div class="ref-grid">
+    <div class="ref"><h4>Scaling</h4><ul>
+      <li><span class="term">Vertical (up):</span> bigger machine. Simple, has a ceiling, single point of failure.</li>
+      <li><span class="term">Horizontal (out):</span> more machines + load balancer. Scales far, fault-tolerant, needs stateless apps.</li>
+      <li><span class="term">Rule:</span> scale stateless app tier out; scale DB up first, shard last.</li>
+    </ul></div>
+    <div class="ref"><h4>Load balancing</h4><ul>
+      <li>Round robin, least-connections, IP hash.</li>
+      <li>Health checks route around dead nodes.</li>
+      <li>Enables zero-downtime deploys + horizontal scale.</li>
+    </ul></div>
+    <div class="ref"><h4>Caching</h4><ul>
+      <li>Layers: browser &rarr; CDN &rarr; app memory &rarr; Redis &rarr; DB.</li>
+      <li>Hard part: invalidation (TTL, write-through, evict on change).</li>
+      <li>Watch: stampede, caching private data.</li>
+    </ul></div>
+    <div class="ref"><h4>CAP / consistency</h4><ul>
+      <li>On a partition, choose Consistency or Availability.</li>
+      <li>Strong = money/inventory. Eventual = feeds/counts.</li>
+      <li>ACID (relational) vs BASE (NoSQL scale).</li>
+    </ul></div>
+    <div class="ref"><h4>BCP vs DR</h4><ul>
+      <li><span class="term">BCP:</span> keep the whole business running (people, vendors, systems).</li>
+      <li><span class="term">DR:</span> restore IT systems/data. DR lives inside BCP.</li>
+      <li>DR tiers: Backup &rarr; Pilot light &rarr; Warm standby &rarr; Active-active.</li>
+    </ul></div>
+    <div class="ref"><h4>RTO &amp; RPO</h4><ul>
+      <li><span class="term">RPO:</span> how much data can we lose (backup frequency).</li>
+      <li><span class="term">RTO:</span> how long until restored (standby hotness).</li>
+      <li>Both are business decisions &rarr; cost. Set per system.</li>
+    </ul></div>
+  </div>
+
+  <h2>Metrics &amp; reliability</h2>
+  <div class="ref-grid">
+    <div class="ref"><h4>SLI / SLO / SLA</h4><ul>
+      <li><span class="term">SLI:</span> the measured number.</li>
+      <li><span class="term">SLO:</span> internal target.</li>
+      <li><span class="term">SLA:</span> contractual promise (penalties).</li>
+    </ul></div>
+    <div class="ref"><h4>DORA (delivery health)</h4><ul>
+      <li>Deployment frequency</li>
+      <li>Lead time for changes</li>
+      <li>Change failure rate</li>
+      <li>Time to restore service</li>
+    </ul></div>
+    <div class="ref"><h4>Latency</h4><ul>
+      <li>Use p50/p95/p99, not averages.</li>
+      <li>p99 = slowest 1% (the tail users feel).</li>
+      <li>Latency vs throughput is a trade-off.</li>
+    </ul></div>
+    <div class="ref"><h4>Error budget</h4><ul>
+      <li>100% &minus; SLO = allowed unreliability.</li>
+      <li>Spent &rarr; stop features, fix reliability.</li>
+      <li>Each extra "nine" costs ~10&times; more.</li>
+    </ul></div>
+  </div>
+
+  <h2>Leadership &amp; delivery</h2>
+  <div class="ref-grid">
+    <div class="ref"><h4>Decision types</h4><ul>
+      <li><span class="term">Reversible (2-way door):</span> decide fast, delegate.</li>
+      <li><span class="term">One-way door:</span> slow down, gather data.</li>
+      <li>Most decisions are reversible.</li>
+    </ul></div>
+    <div class="ref"><h4>Iron triangle</h4><ul>
+      <li>Scope &middot; Time &middot; Cost &mdash; fix two, the third flexes.</li>
+      <li>Push all three &rarr; quality silently pays.</li>
+    </ul></div>
+    <div class="ref"><h4>Delivery</h4><ul>
+      <li>Small, frequent, reversible releases.</li>
+      <li>Canary + blue-green + feature flags.</li>
+      <li>Recovery speed &gt; release perfection.</li>
+    </ul></div>
+    <div class="ref"><h4>People</h4><ul>
+      <li>Psychological safety = #1 team predictor.</li>
+      <li>Underperformance: diagnose skill/will/fit, support, act.</li>
+      <li>Measure: outcomes &gt; output; growth of the team.</li>
+    </ul></div>
+    <div class="ref"><h4>Tech debt</h4><ul>
+      <li>Deliberate leverage, not a moral failing.</li>
+      <li>~15&ndash;20% steady allocation; make interest visible.</li>
+    </ul></div>
+    <div class="ref"><h4>Metric hygiene</h4><ul>
+      <li>Goodhart: a measure made a target gets gamed.</li>
+      <li>Leading vs lagging indicators.</li>
+      <li>Never use metrics as individual scorecards.</li>
+    </ul></div>
+  </div>
+
+  <h2>Security</h2>
+  <div class="ref-grid">
+    <div class="ref"><h4>AuthN vs AuthZ</h4><ul>
+      <li><span class="term">AuthN:</span> who are you (password, MFA, SSO).</li>
+      <li><span class="term">AuthZ:</span> what can you do (RBAC, ABAC, scopes).</li>
+      <li>AuthN first, then AuthZ.</li>
+    </ul></div>
+    <div class="ref"><h4>OAuth vs OIDC</h4><ul>
+      <li>OAuth 2.0 = delegated authorization.</li>
+      <li>OIDC = authentication layer on top of OAuth.</li>
+      <li>"Sign in with Google" uses both.</li>
+    </ul></div>
+    <div class="ref"><h4>Secrets</h4><ul>
+      <li>Never in source control (rotate if leaked).</li>
+      <li>Use a secrets manager; inject at runtime.</li>
+      <li>Least-privilege keys; auto-rotate; CI secret-scan.</li>
+    </ul></div>
+    <div class="ref"><h4>Principles</h4><ul>
+      <li>Least privilege &middot; Defense in depth.</li>
+      <li>Secure by default / shift left.</li>
+      <li>Zero Trust: never trust, always verify.</li>
+    </ul></div>
+  </div>
+
+  <h2>Tech radar snapshot (mid-2026)</h2>
+  <div class="ref-grid">
+    <div class="ref"><h4>Java</h4><ul>
+      <li>Current LTS: Java 25 (prev LTS: 21).</li>
+      <li>Virtual threads (21+) = simple high concurrency.</li>
+      <li>Policy: standardize on LTS, stay within one.</li>
+    </ul></div>
+    <div class="ref"><h4>Spring Boot</h4><ul>
+      <li>Current: Spring Boot 4 on Spring Framework 7.</li>
+      <li>API versioning first-class; AOT faster startup.</li>
+      <li>Spring AI bridges Java to LLMs/RAG.</li>
+    </ul></div>
+    <div class="ref"><h4>AI for devs</h4><ul>
+      <li>Agentic coding: orchestrate agents, review output.</li>
+      <li>RAG over fine-tuning by default.</li>
+      <li>MCP standard; SLMs; evals + guardrails.</li>
+    </ul></div>
+    <div class="ref"><h4>Leader's AI stance</h4><ul>
+      <li>Capture leverage, manage risk.</li>
+      <li>Review stays mandatory; no secrets in prompts.</li>
+      <li>Evals before customer-facing AI ships.</li>
+    </ul></div>
+  </div>
+
+  <h2>Behavioral</h2>
+  <div class="ref-grid">
+    <div class="ref"><h4>STAR</h4><ul>
+      <li>Situation &middot; Task &middot; Action &middot; Result.</li>
+      <li>~20% context, ~60% your actions, ~20% result+learning.</li>
+      <li>Say "I", quantify the result.</li>
+    </ul></div>
+    <div class="ref"><h4>Story bank (prep 6&ndash;8)</h4><ul>
+      <li>Leadership/influence, conflict, failure.</li>
+      <li>Delivery under pressure, growing people, business impact.</li>
+    </ul></div>
+    <div class="ref"><h4>Situational skeleton</h4><ul>
+      <li>Clarify &rarr; name the tension &rarr; criteria &rarr; decide &rarr; follow up.</li>
+    </ul></div>
+    <div class="ref"><h4>Traps</h4><ul>
+      <li>Weakness: real + how you manage it.</li>
+      <li>Silence: it's OK to stop; offer to go deeper.</li>
+      <li>Composure beats speed.</li>
+    </ul></div>
+  </div>
+
+  <h2>Say it like a director &mdash; one-liners</h2>
+  <div class="oneliners">
+    <div><b>Trade-offs:</b> "It depends on what we're optimizing for &mdash; let me name the trade-off."</div>
+    <div><b>Speed:</b> "This is a reversible decision, so I'd rather move now and learn than wait for perfect certainty."</div>
+    <div><b>Reliability:</b> "What reliability does this use case actually need, and what does the next nine cost us?"</div>
+    <div><b>Scaling:</b> "Keep the compute stateless so scaling and failure both stay boring."</div>
+    <div><b>DR:</b> "DR starts with two business numbers &mdash; RPO and RTO &mdash; not a technology choice."</div>
+    <div><b>People:</b> "I measure success by what the team ships without me in the room."</div>
+    <div><b>Delivery:</b> "Safety comes from a fast path to production and an even faster path to roll back."</div>
+    <div><b>Security:</b> "Make the secure path the easy path, so engineers don't route around it."</div>
+    <div><b>AI:</b> "Capture the leverage, manage the risk &mdash; review stays mandatory."</div>
+    <div><b>Conflict:</b> "Let's run a small spike and let data decide; if it's a one-way door, I'll make the call and explain it."</div>
+  </div>
+
+  <h2>Company quick cues</h2>
+  <div class="ref-grid">
+    <div class="ref"><h4>Google</h4><p>Googleyness &amp; Leadership, General Cognitive Ability, scale &amp; ambiguity. Structure-your-thinking out loud; data-driven; hiring-committee judged.</p></div>
+    <div class="ref"><h4>Microsoft</h4><p>Model&middot;Coach&middot;Care, growth mindset, "as a leader I&hellip;", cross-team collaboration over individual heroics.</p></div>
+    <div class="ref"><h4>Amazon</h4><p>16 Leadership Principles, deeply STAR, data + Ownership + Dive Deep. Expect "tell me about a time&hellip;" loops + Bar Raiser.</p></div>
+    <div class="ref"><h4>Atlassian</h4><p>Values-based round, "Team Anywhere"/distributed, play-as-a-team, customer impact, candor.</p></div>
+    <div class="ref"><h4>Target / enterprise</h4><p>Scale + reliability + cost stewardship, stakeholder partnership, modernization &amp; delivery predictability.</p></div>
+    <div class="ref"><h4>Okta / security-first</h4><p>Identity, Zero Trust, secure-by-default, customer-trust framing, incident maturity.</p></div>
+  </div>
+
+  
+    <div class="recap"><span class="label">&#129504; Remember it</span>
+      <p>The cheat sheet is for <span class="hook">reactivation, not learning</span> &mdash; skim it the morning of.</p>
+      <ul>
+        <li>Read it aloud; gaps that don&#8217;t unfold = revisit that pillar.</li>
+        <li>Print it or save as PDF for an offline last pass.</li>
+        <li>Trust your prep &mdash; don&#8217;t cram new ideas now.</li>
+      </ul>
+    </div>
+
+  <div class="foot-note"><span>Director&#8217;s Edge &mdash; Cheat Sheet</span><span>Print the morning of. Skim, don&#8217;t cram.</span></div>
+</div>
+
+<script src="assets/js/main.js"></script>
+</body>
+</html>

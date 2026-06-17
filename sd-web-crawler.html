@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="warm">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Design a Web Crawler — Director's Edge</title>
+<meta name="description" content="System design deep-dive: Design a Web Crawler." />
+<link rel="preconnect" href="https://fonts.googleapis.com" /><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="assets/css/styles.css" />
+</head>
+<body data-theme="warm">
+<section class="hero"><span class="eyebrow">System design deep-dive</span><h1>Design a Web Crawler</h1><p class="lead">A deep-dive into crawling the web at scale: the URL frontier, politeness and robots.txt, bloom-filter dedup, and freshness prioritization.</p></section>
+<div class="wrap section"><div class="page-layout">
+  <aside class="toc"><strong>On this page</strong>
+    <a href="#think">How to think (step by step)</a>
+    <a href="#reqs">1 · Requirements</a>
+    <a href="#capacity">2 · Capacity</a>
+    <a href="#arch">3 · Architecture</a>
+    <a href="#hard">4 · The hard parts</a>
+    <a href="#scale">5 · Scaling</a>
+    <a href="#tradeoffs">6 · Trade-offs</a>
+    <a href="#subsystems">Key sub-systems</a>
+    <a href="#bottlenecks">Bottlenecks</a>
+    <a href="#levels">Senior / Staff / Principal</a>
+    <a href="#faq">Follow-up Q&amp;A</a>
+  </aside>
+  <main>
+    <div class="callout"><span class="label">&#11088; At Google</span><p>Drive it top-down: requirements &rarr; scale &rarr; design &rarr; bottleneck &rarr; trade-offs. Back to <a href="system-design-cases.html">System Design II</a>.</p></div>
+    <div class="story"><span class="label">&#128214; The story</span>
+      <p>A crawler is a loop that never ends: take a URL, fetch it, harvest its links, and queue the new ones. Simple &mdash; until you do it politely, billions of times, without crawling the same thing twice.</p>
+      <p>So the design is a giant <em>frontier</em> queue of URLs to visit, a fleet of fetchers that throttle themselves per domain and obey robots.txt, and a cheap <em>bloom filter</em> that remembers what&#8217;s already been seen &mdash; with newly discovered links flowing back into the frontier.</p>
+    </div>
+
+            <div class="tools"><span class="tlabel">&#128295; Typical tools</span><span class="tool">Apache Kafka</span><span class="tool">Bloom filter</span><span class="tool">Amazon S3</span><span class="tool">Scrapy</span></div>
+
+    <h2 id="think">How to think about it &mdash; step by step</h2>
+    <div class="steps">
+      <div class="step"><h4>See the basic loop</h4><p>Take a URL, fetch it, extract links, queue the new ones, repeat. <span class="why">Why:</span> the simple core makes the hard parts clear.</p></div>
+      <div class="step"><h4>Be polite</h4><p>Per-domain rate limits and obey robots.txt. <span class="why">Why:</span> a rude crawler gets banned and harms sites.</p></div>
+      <div class="step"><h4>Avoid re-fetching</h4><p>A bloom filter cheaply remembers 'seen' URLs in little memory. <span class="why">Why:</span> exact sets of billions of URLs won't fit.</p></div>
+      <div class="step"><h4>Prioritize and avoid traps</h4><p>Crawl important/changing pages more; detect infinite calendars and cap depth. <span class="why">Why:</span> not all pages are worth equal effort, and some are bottomless.</p></div>
+      <div class="step"><h4>Name the trade-off</h4><p>Recrawl often (fresh, costly) vs by importance. <span class="why">Why:</span> freshness has a price.</p></div>
+    </div>
+
+    <h2 id="reqs">1 &middot; Requirements</h2>
+    <p><strong>Functional:</strong> start from seed URLs, fetch pages, extract links, and keep crawling the web &mdash; storing content for indexing. <strong>Non-functional:</strong> scale to billions of pages, be <em>polite</em> (don&#8217;t hammer a site), avoid re-fetching duplicates, and keep content reasonably fresh.</p>
+    <h2 id="capacity">2 &middot; Capacity</h2>
+    <p>Billions of URLs means the &lsquo;to-visit&rsquo; frontier and the &lsquo;already-seen&rsquo; set are themselves huge distributed structures &mdash; you can&#8217;t hold them in one machine&#8217;s memory.</p>
+    <h2 id="arch">3 &middot; Architecture</h2>
+    <figure class="diagram">
+      <svg viewBox="0 0 840 200" role="img" aria-label="A URL frontier feeds fetcher workers that fetch pages, store content, and a parser extracts links back into the frontier after a seen-check">
+        <defs><marker id="arWC" markerWidth="9" markerHeight="9" refX="7" refY="4.5" orient="auto"><path d="M0,0 L9,4.5 L0,9 z" fill="var(--accent)"/></marker></defs>
+        <rect class="svg-accent2" x="10" y="76" width="130" height="52" rx="9"/><text class="svg-txt" x="75" y="98" text-anchor="middle">URL frontier</text><text class="svg-sub" x="75" y="115" text-anchor="middle">priority queue</text>
+        <rect class="svg-accent" x="180" y="76" width="140" height="52" rx="9"/><text class="svg-txt" x="250" y="98" text-anchor="middle">Fetchers</text><text class="svg-sub" x="250" y="115" text-anchor="middle">robots + rate limit</text>
+        <rect class="svg-box" x="360" y="20" width="140" height="46" rx="9"/><text class="svg-txt" x="430" y="42" text-anchor="middle">Content store</text><text class="svg-sub" x="430" y="58" text-anchor="middle">raw pages</text>
+        <rect class="svg-accent" x="360" y="100" width="140" height="50" rx="9"/><text class="svg-txt" x="430" y="122" text-anchor="middle">Parser</text><text class="svg-sub" x="430" y="138" text-anchor="middle">extract links</text>
+        <rect class="svg-good" x="540" y="100" width="150" height="50" rx="9"/><text class="svg-txt" x="615" y="122" text-anchor="middle">Seen filter</text><text class="svg-sub" x="615" y="138" text-anchor="middle">bloom filter</text>
+        <g class="svg-line-acc">
+          <line x1="140" y1="102" x2="178" y2="102" marker-end="url(#arWC)"/>
+          <line x1="320" y1="94" x2="358" y2="46" marker-end="url(#arWC)"/>
+          <line x1="320" y1="108" x2="358" y2="124" marker-end="url(#arWC)"/>
+          <line x1="500" y1="125" x2="538" y2="125" marker-end="url(#arWC)"/>
+        </g>
+        <path class="svg-line-acc" d="M615,150 L615,180 L75,180 L75,130" fill="none" marker-end="url(#arWC)"/>
+        <text class="svg-sub" x="340" y="196" text-anchor="middle">new (unseen) URLs flow back into the frontier</text>
+      </svg>
+      <figcaption>The frontier hands URLs to fetcher workers, which respect <code>robots.txt</code> and per-domain rate limits. Fetched pages go to the content store; a parser extracts links, checks them against a bloom-filter &lsquo;seen&rsquo; set, and feeds genuinely new URLs back into the frontier &mdash; a continuous loop.</figcaption>
+    </figure>
+        <div class="example" data-ex-added><span class="label">&#128205; Real example &mdash; a Bloom filter for &ldquo;seen this URL?&rdquo;</span>
+      <p>A crawler must skip URLs it has already visited. Storing billions of full URLs in a set is huge; a <strong>Bloom filter</strong> answers &ldquo;have I seen this?&rdquo; in a tiny bit-array using a few hash functions:</p>
+      <pre class="code">bit array (m=16 bits, k=3 hashes) &mdash; toy size
+index:  0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15
+start:  0 0 0 0 0 0 0 0 0 0  0  0  0  0  0  0
+
+add("http://a.com")  &rarr; hashes to {2, 7, 11}   set those bits = 1
+add("http://b.com")  &rarr; hashes to {2, 9, 14}   set those bits = 1
+
+check("http://a.com") &rarr; bits 2,7,11 all 1   &rarr; "probably seen"  (correct)
+check("http://c.com") &rarr; bit 5 is 0          &rarr; "definitely NEW" (correct, skip a lookup)</pre>
+      <p><strong>What this teaches:</strong> a Bloom filter gives <em>no false negatives</em> (if it says &ldquo;new&rdquo;, it really is new) but allows rare <em>false positives</em> (it may say &ldquo;seen&rdquo; for a fresh URL because another URL set the same bits). That trade is perfect for a crawler: occasionally skipping a new URL is cheap, and in exchange you fit a &ldquo;seen set&rdquo; for billions of URLs in megabytes instead of terabytes. Tune <code>m</code> (bits) and <code>k</code> (hashes) to set the false-positive rate.</p>
+    </div>
+
+    <h2 id="hard">4 &middot; The hard parts</h2>
+    <ul class="clean">
+      <li><strong>Politeness</strong>: never overload a site &mdash; per-domain rate limits and obeying <code>robots.txt</code>; partition the frontier by host so one domain&#8217;s pace is controlled.</li>
+      <li><strong>Dedup at scale</strong>: a bloom filter cheaply answers &ldquo;have we seen this URL?&rdquo; using little memory (with a small false-positive rate); content hashing catches duplicate <em>pages</em> at different URLs.</li>
+      <li><strong>Prioritization &amp; traps</strong>: crawl important/changing pages more often; detect infinite calendars and spider traps; cap depth.</li>
+    </ul>
+    <h2 id="scale">5 &middot; Scaling &amp; failure</h2>
+    <ul class="clean">
+      <li>Distribute fetchers and shard the frontier by domain; the seen-set is a distributed bloom filter / KV store.</li>
+      <li>Checkpoints let a crashed worker&#8217;s URLs be re-queued; politeness state is persisted so restarts stay courteous.</li>
+    </ul>
+    <h2 id="tradeoffs">6 &middot; Trade-offs</h2>
+    <ul class="clean">
+      <li>Freshness vs cost &mdash; recrawl frequently (fresh, expensive) vs prioritize by importance/change rate.</li>
+      <li>Bloom filter (tiny memory, rare false positives that skip a URL) vs exact set (perfect, huge).</li>
+    </ul>
+        <h2 id="subsystems">Key sub-systems</h2>
+    <ul class="clean">
+      <li><strong>URL frontier</strong> &mdash; priority queue, partitioned by host.</li>
+      <li><strong>Fetchers</strong> &mdash; robots.txt + per-domain rate limits.</li>
+      <li><strong>Parser</strong> &mdash; extracts links and content.</li>
+      <li><strong>Seen filter</strong> &mdash; bloom filter for dedup.</li>
+      <li><strong>Content store</strong> &mdash; raw pages for indexing.</li>
+    </ul>
+    <h2 id="bottlenecks">Bottlenecks &amp; what to optimize next</h2>
+    <ul class="clean">
+      <li>Politeness limits throughput per domain &mdash; partition the frontier by host to parallelize across domains.</li>
+      <li>Dedup at billions of URLs &mdash; bloom filters keep memory tiny.</li>
+    </ul>
+    <h2 id="levels">Senior &middot; Staff &middot; Principal</h2>
+    <div class="ladder">
+      <div class="lv s"><span class="tier">Senior</span><p>Builds the fetch loop with politeness and bloom-filter dedup.</p></div>
+      <div class="lv t"><span class="tier">Staff</span><p>Handles prioritization, trap detection, and distributed frontier sharding.</p></div>
+      <div class="lv p"><span class="tier">Principal</span><p>Raises freshness scheduling by change-rate, JS-rendered pages, and legal/robots compliance at scale.</p></div>
+    </div>
+    <h2 id="faq">Common follow-up questions</h2>
+    <details class="qa"><summary>How do you avoid re-crawling the same page?</summary><div class="body"><p>A bloom filter cheaply answers 'seen this URL?' in little memory; content hashing catches duplicate pages at different URLs.</p></div></details>
+    <details class="qa"><summary>How do you stay polite?</summary><div class="body"><p>Per-domain rate limits and robots.txt; partition the frontier by host so one domain's pace is controlled.</p></div></details>
+    <details class="qa"><summary>How do you keep content fresh?</summary><div class="body"><p>Prioritize re-crawls by importance and observed change rate rather than crawling everything equally often.</p></div></details>
+
+    <div class="recap"><span class="label">&#129504; Remember it</span>
+      <p>Crawler = <span class="hook">frontier loop + politeness + bloom-filter dedup</span>.</p>
+      <ul>
+        <li>Frontier (priority queue) &rarr; fetch &rarr; parse &rarr; new URLs back in.</li>
+        <li>Be polite: per-domain rate limits + robots.txt.</li>
+        <li>Bloom filter dedups billions of URLs in little memory.</li>
+      </ul>
+    </div>
+
+    <div class="pagenav">
+      <a class="card" href="sd-google-docs.html"><span class="tag">&larr; Previous</span><h3>Collaborative Editing</h3></a>
+      <a class="card" href="system-design-cases.html"><span class="tag">Back to &rarr;</span><h3>System Design II</h3></a>
+    </div>
+  </main>
+</div></div>
+<script src="assets/js/main.js"></script>
+</body>
+</html>

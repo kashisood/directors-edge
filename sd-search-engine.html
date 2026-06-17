@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="warm">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Design a Search Engine — Director's Edge</title>
+<meta name="description" content="System design deep-dive: Design a Search Engine." />
+<link rel="preconnect" href="https://fonts.googleapis.com" /><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="assets/css/styles.css" />
+</head>
+<body data-theme="warm">
+<section class="hero"><span class="eyebrow">System design deep-dive</span><h1>Design a Search Engine</h1><p class="lead">A deep-dive into web search: the inverted index, sharded scatter-gather query serving, relevance ranking, and the freshness-vs-cost trade-off.</p></section>
+<div class="wrap section"><div class="page-layout">
+  <aside class="toc"><strong>On this page</strong>
+    <a href="#think">How to think (step by step)</a>
+    <a href="#reqs">1 · Requirements</a>
+    <a href="#capacity">2 · Capacity</a>
+    <a href="#api">3 · API</a>
+    <a href="#data">4 · Data model</a>
+    <a href="#arch">5 · Architecture</a>
+    <a href="#hard">6 · The hard parts</a>
+    <a href="#scale">7 · Scaling</a>
+    <a href="#tradeoffs">8 · Trade-offs</a>
+    <a href="#subsystems">Key sub-systems</a>
+    <a href="#bottlenecks">Bottlenecks</a>
+    <a href="#levels">Senior / Staff / Principal</a>
+    <a href="#faq">Follow-up Q&amp;A</a>
+  </aside>
+  <main>
+    <div class="callout"><span class="label">&#11088; At Google</span><p>Drive it top-down: requirements &rarr; scale &rarr; design &rarr; bottleneck &rarr; trade-offs. Back to <a href="system-design-cases.html">System Design II</a>.</p></div>
+    <div class="story"><span class="label">&#128214; The story</span>
+      <p>Search is two systems wearing one coat. Offline, you turn the messy web into a tidy <em>inverted index</em> &mdash; a map from each word to the documents containing it. Online, you answer queries against that index in milliseconds.</p>
+      <p>At billions of docs the index is sharded across many machines, so a query <em>scatters</em> to all shards, each returns its best local hits, and a coordinator <em>gathers</em> and ranks them. The magic and the difficulty both live in ranking &mdash; blending text relevance with quality signals.</p>
+    </div>
+
+            <div class="tools"><span class="tlabel">&#128295; Typical tools</span><span class="tool">Elasticsearch</span><span class="tool">Apache Lucene</span><span class="tool">Apache Solr</span></div>
+
+    <h2 id="think">How to think about it &mdash; step by step</h2>
+    <div class="steps">
+      <div class="step"><h4>See it as two systems</h4><p>Build the index (offline) and serve queries (online). <span class="why">Why:</span> they have totally different constraints.</p></div>
+      <div class="step"><h4>Build an inverted index</h4><p>Map each word to the list of documents containing it. <span class="why">Why:</span> it's what makes 'find docs with this word' fast.</p></div>
+      <div class="step"><h4>Shard and scatter-gather</h4><p>Split the index across machines; a query hits all shards, each returns its best, then merge. <span class="why">Why:</span> the index is too big for one machine.</p></div>
+      <div class="step"><h4>Rank well</h4><p>Blend text relevance (BM25) with quality and freshness signals. <span class="why">Why:</span> relevance is the actual product.</p></div>
+      <div class="step"><h4>Mind the tail</h4><p>The slowest shard sets your latency, so replicate and hedge. <span class="why">Why:</span> scatter-gather is only as fast as its slowest part.</p></div>
+    </div>
+
+    <h2 id="reqs">1 &middot; Requirements</h2>
+    <p><strong>Functional:</strong> given a query, return relevant documents ranked best-first, fast. <strong>Non-functional:</strong> index a huge corpus, very low query latency, high availability, and reasonable freshness. The two halves are <em>building the index</em> (offline, batch) and <em>serving queries</em> (online, latency-critical).</p>
+    <h2 id="capacity">2 &middot; Capacity</h2>
+    <p>Billions of documents and huge query volume mean the inverted index can&#8217;t live on one machine &mdash; it&#8217;s sharded across many, and queries scatter-gather across them within tens of milliseconds.</p>
+    <h2 id="api">3 &middot; API</h2>
+    <ul class="clean"><li><code>GET /search?q=...&amp;page=</code> &rarr; ranked results + snippets + paging cursor.</li></ul>
+    <h2 id="data">4 &middot; Data model</h2>
+    <ul class="clean">
+      <li><strong>Inverted index</strong>: <code>term &rarr; postings list</code> (the doc IDs containing that term, with positions/frequencies) &mdash; sharded by term or by document.</li>
+      <li>Document store (for snippets/metadata) and a ranking-signal store (PageRank-like scores, freshness, clicks).</li>
+    </ul>
+    <h2 id="arch">5 &middot; Architecture</h2>
+    <figure class="diagram">
+      <svg viewBox="0 0 860 230" role="img" aria-label="Crawler feeds an indexer that builds sharded inverted indexes; a query service scatters to shards, gathers and ranks">
+        <defs><marker id="arSE" markerWidth="9" markerHeight="9" refX="7" refY="4.5" orient="auto"><path d="M0,0 L9,4.5 L0,9 z" fill="var(--accent)"/></marker></defs>
+        <rect class="svg-box" x="8" y="20" width="100" height="44" rx="9"/><text class="svg-txt" x="58" y="40" text-anchor="middle">Crawler</text><text class="svg-sub" x="58" y="56" text-anchor="middle">fetch docs</text>
+        <rect class="svg-accent2" x="130" y="20" width="120" height="44" rx="9"/><text class="svg-txt" x="190" y="40" text-anchor="middle">Indexer</text><text class="svg-sub" x="190" y="56" text-anchor="middle">build inverted idx</text>
+        <rect class="svg-good" x="300" y="6" width="150" height="34" rx="8"/><text class="svg-sub" x="375" y="28" text-anchor="middle">index shard A</text>
+        <rect class="svg-good" x="300" y="46" width="150" height="34" rx="8"/><text class="svg-sub" x="375" y="68" text-anchor="middle">index shard B</text>
+        <rect class="svg-good" x="300" y="86" width="150" height="34" rx="8"/><text class="svg-sub" x="375" y="108" text-anchor="middle">index shard C</text>
+        <rect class="svg-box" x="8" y="150" width="90" height="50" rx="9"/><text class="svg-txt" x="53" y="180" text-anchor="middle">Client</text>
+        <rect class="svg-accent" x="130" y="150" width="150" height="50" rx="9"/><text class="svg-txt" x="205" y="172" text-anchor="middle">Query svc</text><text class="svg-sub" x="205" y="188" text-anchor="middle">scatter / gather / rank</text>
+        <g class="svg-line-acc">
+          <line x1="108" y1="42" x2="128" y2="42" marker-end="url(#arSE)"/>
+          <line x1="250" y1="36" x2="298" y2="23" marker-end="url(#arSE)"/>
+          <line x1="250" y1="42" x2="298" y2="63" marker-end="url(#arSE)"/>
+          <line x1="250" y1="48" x2="298" y2="103" marker-end="url(#arSE)"/>
+          <line x1="98" y1="175" x2="128" y2="175" marker-end="url(#arSE)"/>
+          <line x1="280" y1="168" x2="300" y2="120" marker-end="url(#arSE)"/>
+        </g>
+        <text class="svg-sub" x="560" y="115" text-anchor="middle">Query fans out to all shards, each returns its top matches,</text>
+        <text class="svg-sub" x="560" y="132" text-anchor="middle">the query service merges &amp; ranks (BM25 + signals), caches hot queries.</text>
+      </svg>
+      <figcaption>Offline, the crawler feeds an indexer that builds a sharded inverted index. Online, the query service scatters the query to every shard, each returns its best local matches, and the service gathers and ranks them globally before returning a page. Popular queries are cached.</figcaption>
+    </figure>
+    <h2 id="hard">6 &middot; The hard parts</h2>
+    <ul class="clean">
+      <li><strong>Ranking</strong>: relevance = text match (TF-IDF / BM25) blended with quality/authority signals and freshness; this is the secret sauce.</li>
+      <li><strong>Scatter-gather latency</strong>: a query must hit all shards and return fast &mdash; tail latency on the slowest shard dominates, so you over-replicate and hedge requests.</li>
+      <li><strong>Index freshness</strong>: rebuild/merge segments incrementally so new docs appear without rebuilding everything.</li>
+    </ul>
+    <h2 id="scale">7 &middot; Scaling &amp; failure</h2>
+    <ul class="clean">
+      <li>Shard the index (more shards = more parallelism); replicate each shard for availability and read throughput.</li>
+      <li>Cache popular queries; degrade gracefully (return fewer/partial results) if a shard is slow rather than stalling.</li>
+    </ul>
+    <h2 id="tradeoffs">8 &middot; Trade-offs</h2>
+    <ul class="clean">
+      <li>Freshness vs cost (incremental indexing vs full rebuild).</li>
+      <li>More shards = parallelism but more scatter-gather + tail-latency overhead.</li>
+      <li>Precomputed ranking signals (fast, slightly stale) vs computing at query time.</li>
+    </ul>
+        <h2 id="subsystems">Key sub-systems</h2>
+    <ul class="clean">
+      <li><strong>Crawler/ingest</strong> &mdash; documents in.</li>
+      <li><strong>Indexer</strong> &mdash; builds the inverted index.</li>
+      <li><strong>Index shards</strong> &mdash; partitioned postings.</li>
+      <li><strong>Query service</strong> &mdash; scatter/gather + rank.</li>
+      <li><strong>Query cache</strong> &mdash; popular searches.</li>
+    </ul>
+    <h2 id="bottlenecks">Bottlenecks &amp; what to optimize next</h2>
+    <ul class="clean">
+      <li>Tail latency on the slowest shard dominates &mdash; replicate shards and hedge requests.</li>
+      <li>Index freshness vs cost &mdash; incremental segment merges instead of full rebuilds.</li>
+    </ul>
+    <h2 id="levels">Senior &middot; Staff &middot; Principal</h2>
+    <div class="ladder">
+      <div class="lv s"><span class="tier">Senior</span><p>Builds the inverted index and scatter-gather serving.</p></div>
+      <div class="lv t"><span class="tier">Staff</span><p>Handles ranking (BM25 + signals), sharding, and tail latency.</p></div>
+      <div class="lv p"><span class="tier">Principal</span><p>Raises learning-to-rank, real-time indexing, and query understanding (synonyms, intent).</p></div>
+    </div>
+    <h2 id="faq">Common follow-up questions</h2>
+    <details class="qa"><summary>What makes search fast?</summary><div class="body"><p>An inverted index (term&rarr;documents) so you never scan documents; sharded across machines and queried in parallel.</p></div></details>
+    <details class="qa"><summary>How do you rank results?</summary><div class="body"><p>Blend text relevance (TF-IDF/BM25) with quality/authority and freshness signals; advanced systems use learning-to-rank.</p></div></details>
+    <details class="qa"><summary>Why is tail latency a problem?</summary><div class="body"><p>A query waits for all shards; the slowest one sets the response time, so you replicate and hedge (send duplicate requests).</p></div></details>
+
+    <div class="recap"><span class="label">&#129504; Remember it</span>
+      <p>Search = <span class="hook">inverted index + sharded scatter-gather + ranking</span>.</p>
+      <ul>
+        <li>Inverted index (term &rarr; postings), sharded across machines.</li>
+        <li>Query scatters to shards, gathers, ranks (BM25 + signals).</li>
+        <li>Replicate shards + cache hot queries; tail latency is the enemy.</li>
+      </ul>
+    </div>
+
+    <div class="pagenav">
+      <a class="card" href="sd-key-value-store.html"><span class="tag">&larr; Previous</span><h3>Key-Value Store</h3></a>
+      <a class="card" href="sd-google-docs.html"><span class="tag">Next deep-dive &rarr;</span><h3>Collaborative Editing</h3></a>
+    </div>
+  </main>
+</div></div>
+<script src="assets/js/main.js"></script>
+</body>
+</html>

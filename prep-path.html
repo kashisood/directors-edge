@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="warm">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Prep Path — Director's Edge</title>
+<meta name="description" content="A staged study plan for engineering leadership interviews: Level 1 Foundations, Level 2 Core, Level 3 Advanced (FAANG bar), with checklists and links." />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="assets/css/styles.css" />
+</head>
+<body data-theme="warm">
+
+<section class="hero">
+  <span class="eyebrow">Study roadmap</span>
+  <h1>The Prep Path</h1>
+  <p class="lead">Don't study randomly. Move in three levels of increasing complexity &mdash; each builds on the last. Finish a level only when you can <em>say</em> its ideas aloud without notes, then climb. Target: the Google / Microsoft / Amazon director bar.</p>
+</section>
+
+<div class="wrap section">
+<div class="page-layout">
+
+  <aside class="toc">
+    <strong>On this page</strong>
+    <a href="#how">How to use it</a>
+    <a href="#l1">Level 1 &middot; Foundations</a>
+    <a href="#l2">Level 2 &middot; Core</a>
+    <a href="#l3">Level 3 &middot; Advanced</a>
+    <a href="#week">The final week</a>
+  </aside>
+
+  <main>
+    <div class="story"><span class="label">&#128214; The story</span>
+      <p>Random studying feels productive and changes nothing. The story of this path is a <em>climb</em>: you don&#8217;t attempt Level 3 cliffs until Level 1 footing is solid.</p>
+      <p>Level 1 builds the vocabulary and mental models. Level 2 connects them to real decisions &mdash; enough to clear a standard director loop. Level 3 is operating in ambiguity and at scale, the FAANG bar.</p>
+      <p>The gate between levels isn&#8217;t reading more &mdash; it&#8217;s being able to <em>say</em> the ideas aloud, in a leader&#8217;s words, without notes. Pass the gate, then climb.</p>
+    </div>
+
+
+    <h2 id="how">How to use the path</h2>
+    <p>Each pillar page tags its practice questions <span class="qa-badge lvl lvl1" style="margin:0">L1</span> <span class="qa-badge lvl lvl2" style="margin:0">L2</span> <span class="qa-badge lvl lvl3" style="margin:0">L3</span> and gives you a filter at the top of its question bank. Work a level horizontally across <em>all</em> pillars before moving up &mdash; breadth first, then depth. Gate yourself: you've cleared a level when you can answer its questions out loud, in the director's vocabulary, without reading.</p>
+
+    <div class="callout tip">
+      <span class="label">The gate test</span>
+      <p>Before climbing a level, record yourself answering three of its questions. If you name the trade-off, give a concrete example, cite a metric, and end on business impact &mdash; pass. If you ramble or recite definitions &mdash; stay a level.</p>
+    </div>
+
+    <!-- LEVEL 1 -->
+    <div class="level-block l1" id="l1">
+      <div class="level-head">
+        <div class="level-chip">L1</div>
+        <div>
+          <h3>Foundations</h3>
+          <div class="sub">Goal: explain the core concepts clearly &middot; <span class="pill-time">~1 week</span></div>
+        </div>
+      </div>
+      <p>Build the vocabulary and mental models. At this level you should never be caught out by a definition, and you should sound like someone who thinks in trade-offs.</p>
+      <ul class="checklist">
+        <li>Read <a href="fundamentals.html">Fundamentals</a> end to end; master latency vs throughput, CAP, ACID/BASE, stateless, idempotency.</li>
+        <li>Learn the metrics language: SLI/SLO/SLA, p50/p95/p99, error budget, DORA.</li>
+        <li>System design basics: vertical vs horizontal scaling, load balancing, caching (<a href="system-design.html">System Design</a> first half).</li>
+        <li>Behavioral basics: the STAR structure and a first draft of 6&ndash;8 stories (<a href="behavioral.html">Behavioral</a>).</li>
+        <li>Skim the <a href="cheat-sheet.html">Cheat Sheet</a> daily until the terms feel automatic.</li>
+        <li>Drill every pillar's <b>L1</b> questions using the level filter.</li>
+      </ul>
+      <p style="margin-bottom:0"><b>You pass when:</b> you can explain CAP, scaling, and the metric acronyms to a non-engineer in plain language.</p>
+    </div>
+
+    <!-- LEVEL 2 -->
+    <div class="level-block l2" id="l2">
+      <div class="level-head">
+        <div class="level-chip">L2</div>
+        <div>
+          <h3>Core &mdash; interview-ready</h3>
+          <div class="sub">Goal: handle a standard director loop &middot; <span class="pill-time">~2 weeks</span></div>
+        </div>
+      </div>
+      <p>Now connect concepts to decisions. This is the level that clears most director interviews: complete system-design reasoning, real leadership judgment, and structured behavioral answers.</p>
+      <ul class="checklist">
+        <li>Full system design: BCP, disaster recovery, RTO/RPO, deployment strategies; do a few end-to-end designs out loud (<a href="system-design.html">System Design</a>).</li>
+        <li>Leadership &amp; delivery: team management, project management, release/delivery, DORA, difficult-situation frames (<a href="leadership.html">Leadership &amp; Delivery</a>).</li>
+        <li>Security fluency: AuthN vs AuthZ, OAuth/OIDC, secrets &amp; API keys, shift-left (<a href="security.html">Security</a>).</li>
+        <li>Tech radar: current Java/Spring/AI and a leader's stance on adoption (<a href="tech-radar.html">Tech Radar</a>).</li>
+        <li>Behavioral: polish the story bank, practice the situational skeleton, handle trap questions calmly.</li>
+        <li>Read the frameworks on the <a href="companies.html">Company Prep</a> page for your target companies.</li>
+        <li>Drill every pillar's <b>L2</b> questions.</li>
+      </ul>
+      <p style="margin-bottom:0"><b>You pass when:</b> you can design a system end-to-end naming trade-offs, and tell any story in STAR with a quantified result.</p>
+    </div>
+
+    <!-- LEVEL 3 -->
+    <div class="level-block l3" id="l3">
+      <div class="level-head">
+        <div class="level-chip">L3</div>
+        <div>
+          <h3>Advanced &mdash; the FAANG bar</h3>
+          <div class="sub">Goal: crack Google / Microsoft / Amazon-level loops &middot; <span class="pill-time">~2&ndash;3 weeks</span></div>
+        </div>
+      </div>
+      <p>Operate in ambiguity and at scale, and communicate like an executive. At this level the interview is less about knowledge and more about judgment, influence, and how you think when there's no clean answer.</p>
+      <ul class="checklist">
+        <li>Design under ambiguity &amp; scale: multi-region, consistency at scale, cost at scale, "design X for 100M users" with explicit assumptions.</li>
+        <li>Org &amp; strategy: org design (Conway's Law), build-vs-buy, platform vs autonomy, multi-year technical strategy, influencing without authority.</li>
+        <li>Executive communication: translate engineering into business outcomes for a VP/exec panel in two sentences.</li>
+        <li>Company tailoring: map your stories to each company's framework (<a href="companies.html">Company Prep</a>) &mdash; Googleyness, Microsoft's Model-Coach-Care, Amazon's LPs.</li>
+        <li>Trap &amp; pressure questions: stay composed, question wrong premises with data.</li>
+        <li>Run full mock loops (see below). Drill every pillar's <b>L3</b> questions.</li>
+      </ul>
+      <p style="margin-bottom:0"><b>You pass when:</b> you can lead a design through changing requirements, and reframe any behavioral question to a specific company's values on the fly.</p>
+    </div>
+
+    <h2 id="week">The final week &mdash; mock loops</h2>
+    <p>Interviews are a performance; rehearse the performance. In the last week, simulate the real loop rather than reading more.</p>
+    <div class="grid cols-2">
+      <div class="card"><h3>Daily mock</h3><p>One 45-minute block per day: pick a random question from each pillar, answer aloud against a timer, and self-grade with the gate test.</p></div>
+      <div class="card"><h3>One full loop</h3><p>Back-to-back: a system design, a leadership/delivery deep-dive, a security/tech round, and a behavioral round with a friend playing interviewer.</p></div>
+      <div class="card"><h3>Company pass</h3><p>Re-read your target company's section the night before and pre-map two stories to its top values.</p></div>
+      <div class="card"><h3>Questions for them</h3><p>Prepare five sharp questions to ask &mdash; it's evaluated. See the list on the <a href="behavioral.html">Behavioral</a> page.</p></div>
+    </div>
+
+    
+    <div class="recap"><span class="label">&#129504; Remember it</span>
+      <p>Prep is a <span class="hook">climb: L1 footing &rarr; L2 decisions &rarr; L3 ambiguity</span> &mdash; gated by saying it aloud.</p>
+      <ul>
+        <li>Work a level across all pillars before climbing (breadth, then depth).</li>
+        <li>The gate test: answer aloud, in director language, no notes.</li>
+        <li>Final week = mock the real loop, not more reading.</li>
+      </ul>
+    </div>
+
+    <div class="pagenav">
+      <a class="card" href="cheat-sheet.html"><span class="tag">Reference &rarr;</span><h3>Cheat Sheet</h3></a>
+      <a class="card" href="fundamentals.html"><span class="tag">Start Level 1 &rarr;</span><h3>Fundamentals</h3></a>
+    </div>
+
+  </main>
+</div>
+</div>
+
+<script src="assets/js/main.js"></script>
+</body>
+</html>

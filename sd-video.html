@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="warm">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Design Video Streaming (YouTube / Netflix) — Director's Edge</title>
+<meta name="description" content="In-depth system design deep-dive: Design Video Streaming (YouTube / Netflix) — requirements, capacity estimation, API, data model, architecture diagram, scaling, failure handling, and trade-offs." />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="assets/css/styles.css" />
+</head>
+<body data-theme="warm">
+
+<section class="hero">
+  <span class="eyebrow">System design deep-dive</span>
+  <h1>Design Video Streaming (YouTube / Netflix)</h1>
+  <p class="lead">A technical deep-dive into video at global scale: resumable uploads, a parallel chunked transcoding pipeline, adaptive-bitrate streaming, and the CDN-and-storage economics that dominate the design.</p>
+</section>
+
+<div class="wrap section">
+<div class="page-layout">
+  <aside class="toc">
+    <strong>On this page</strong>
+    <a href="#think">How to think (step by step)</a>
+    <a href="#reqs">1 · Requirements</a>
+    <a href="#capacity">2 · Capacity</a>
+    <a href="#api">3 · API</a>
+    <a href="#data">4 · Data model</a>
+    <a href="#upload">5 · Upload pipeline</a>
+    <a href="#playback">6 · Playback</a>
+    <a href="#hard">7 · The hard parts</a>
+    <a href="#scale">8 · Scaling</a>
+    <a href="#tradeoffs">9 · Trade-offs</a>
+    <a href="#subsystems">Key sub-systems</a>
+    <a href="#bottlenecks">Bottlenecks</a>
+    <a href="#levels">Senior / Staff / Principal</a>
+    <a href="#faq">Follow-up Q&amp;A</a>
+  </aside>
+  <main>
+    <div class="story"><span class="label">&#128214; The story</span>
+      <p>This looks like a storage problem and is really a <em>delivery</em> problem. The money and the difficulty are in moving bytes to billions of eyeballs, not in a clever database.</p>
+      <p>The story has two arcs. On upload, the video is chopped into chunks and transcoded in parallel into many resolutions &mdash; turning a long serial job into a fast one. On playback, a multi-tier CDN serves small segments from the edge nearest each viewer, and the player adapts quality to the network on the fly. Obsess over cache-hit ratio and storage tiering, because egress and storage are where the cost lives.</p>
+    </div>
+
+    <div class="callout"><span class="label">&#11088; At Google</span><p>Drive this top-down: requirements &rarr; scale &rarr; design &rarr; deep-dive on the bottleneck &rarr; trade-offs. Narrate assumptions out loud; that structured reasoning is what the hiring committee scores. Back to <a href="system-design-cases.html">System Design II</a>.</p></div>
+
+            <div class="tools"><span class="tlabel">&#128295; Typical tools</span><span class="tool">FFmpeg</span><span class="tool">Amazon S3</span><span class="tool">CloudFront / Akamai</span><span class="tool">HLS / DASH</span></div>
+
+    <h2 id="think">How to think about it &mdash; step by step</h2>
+    <div class="steps">
+      <div class="step"><h4>Reframe it as delivery, not storage</h4><p>The cost and difficulty are moving bytes to billions of screens. <span class="why">Why:</span> it points you straight at CDNs.</p></div>
+      <div class="step"><h4>Process uploads in parallel</h4><p>Chop each video into chunks and transcode them into many resolutions concurrently. <span class="why">Why:</span> turns a long serial job into a fast one.</p></div>
+      <div class="step"><h4>Stream adaptively</h4><p>Serve small segments via a manifest (HLS/DASH); the player picks quality based on bandwidth. <span class="why">Why:</span> smooth playback on any network.</p></div>
+      <div class="step"><h4>Push to the edge</h4><p>A multi-tier CDN serves segments from near each viewer. <span class="why">Why:</span> global low latency and origin offload.</p></div>
+      <div class="step"><h4>Watch the money</h4><p>Maximize cache-hit ratio and tier cold video to cheap storage. <span class="why">Why:</span> egress and storage dominate cost at this scale.</p></div>
+    </div>
+
+    <h2 id="reqs">1 &middot; Requirements</h2>
+    <p><strong>Functional:</strong> upload a video; transcode it to multiple resolutions; stream it to a global audience with adaptive quality; track view counts. (Search/recommendations are separate systems.) <strong>Non-functional:</strong> enormous storage, very high read/egress bandwidth, global low-latency playback, reliable resumable uploads. This is overwhelmingly <strong>read-heavy</strong>, and egress bandwidth &mdash; not compute &mdash; is the dominant cost.</p>
+
+    <h2 id="capacity">2 &middot; Capacity estimation</h2>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Quantity</th><th>Estimate</th><th>Implication</th></tr></thead>
+      <tbody>
+        <tr><td>Watch time</td><td>~1B hours/day</td><td>massive egress &rarr; CDN is mandatory</td></tr>
+        <tr><td>Uploads</td><td>hundreds of hours/min</td><td>large async transcoding fleet</td></tr>
+        <tr><td>Storage</td><td>petabytes/year &amp; growing</td><td>object storage + tiering (hot/cold)</td></tr>
+        <tr><td>Read:write</td><td>views &Ggg; uploads</td><td>optimize relentlessly for delivery</td></tr>
+      </tbody>
+    </table></div>
+
+    <h2 id="api">3 &middot; API</h2>
+    <ul class="clean">
+      <li><code>POST /v1/uploads</code> &rarr; returns a <strong>resumable</strong> upload URL (direct-to-blob, presigned) so bytes never flow through app servers.</li>
+      <li><code>GET /v1/videos/{id}/manifest</code> &rarr; an HLS/DASH manifest listing the available renditions &amp; segment URLs (on the CDN).</li>
+      <li>The player then fetches small <strong>segments</strong> (2&ndash;10s each) directly from the CDN, switching renditions as bandwidth changes.</li>
+    </ul>
+
+    <h2 id="data">4 &middot; Data model</h2>
+    <ul class="clean">
+      <li><strong>Metadata DB</strong>: videoId, owner, title, status (uploaded/transcoding/ready), available renditions, manifest URL.</li>
+      <li><strong>Object storage</strong>: raw upload, plus transcoded segments per resolution (e.g. 240p&hellip;4K), plus the manifest files.</li>
+      <li><strong>View counts</strong>: written via an async analytics pipeline (eventually consistent &mdash; an exact live count isn&#8217;t worth strong consistency).</li>
+    </ul>
+
+    <h2 id="upload">5 &middot; Architecture &mdash; upload &amp; transcoding pipeline</h2>
+    <figure class="diagram">
+      <svg viewBox="0 0 880 200" role="img" aria-label="Upload pipeline: client uploads to blob, a queue feeds transcoding workers that produce multiple renditions to processed storage and the CDN origin">
+        <defs><marker id="arVU" markerWidth="9" markerHeight="9" refX="7" refY="4.5" orient="auto"><path d="M0,0 L9,4.5 L0,9 z" fill="var(--accent)"/></marker></defs>
+        <rect class="svg-box" x="8" y="60" width="84" height="54" rx="9"/><text class="svg-txt" x="50" y="91" text-anchor="middle">Client</text>
+        <rect class="svg-accent" x="112" y="60" width="118" height="54" rx="9"/><text class="svg-txt" x="171" y="82" text-anchor="middle">Upload svc</text><text class="svg-sub" x="171" y="99" text-anchor="middle">resumable</text>
+        <rect class="svg-box" x="250" y="60" width="110" height="54" rx="9"/><text class="svg-txt" x="305" y="82" text-anchor="middle">Raw blob</text><text class="svg-sub" x="305" y="99" text-anchor="middle">object store</text>
+        <rect class="svg-accent2" x="380" y="60" width="120" height="54" rx="9"/><text class="svg-txt" x="440" y="82" text-anchor="middle">Transcode</text><text class="svg-sub" x="440" y="99" text-anchor="middle">queue</text>
+        <rect class="svg-accent2" x="520" y="60" width="130" height="54" rx="9"/><text class="svg-txt" x="585" y="82" text-anchor="middle">Transcode</text><text class="svg-sub" x="585" y="99" text-anchor="middle">workers (per chunk)</text>
+        <rect class="svg-good" x="670" y="36" width="120" height="48" rx="9"/><text class="svg-txt" x="730" y="58" text-anchor="middle">Renditions</text><text class="svg-sub" x="730" y="74" text-anchor="middle">240p&ndash;4K segments</text>
+        <rect class="svg-good" x="670" y="100" width="120" height="48" rx="9"/><text class="svg-txt" x="730" y="122" text-anchor="middle">CDN origin</text><text class="svg-sub" x="730" y="138" text-anchor="middle">+ manifest</text>
+        <g class="svg-line-acc">
+          <line x1="92" y1="87" x2="110" y2="87" marker-end="url(#arVU)"/>
+          <line x1="230" y1="87" x2="248" y2="87" marker-end="url(#arVU)"/>
+          <line x1="360" y1="87" x2="378" y2="87" marker-end="url(#arVU)"/>
+          <line x1="500" y1="87" x2="518" y2="87" marker-end="url(#arVU)"/>
+          <line x1="650" y1="78" x2="668" y2="62" marker-end="url(#arVU)"/>
+          <line x1="650" y1="96" x2="668" y2="118" marker-end="url(#arVU)"/>
+        </g>
+      </svg>
+      <figcaption>Upload flows straight to blob storage (bytes bypass app servers). A job enters the transcoding queue; workers split the video into chunks and transcode each into every target resolution in parallel, write the segments + an HLS/DASH manifest, and publish to the CDN origin. The video&#8217;s status flips to &ldquo;ready&rdquo;.</figcaption>
+    </figure>
+
+    <h2 id="playback">6 &middot; Architecture &mdash; playback (adaptive bitrate)</h2>
+    <figure class="diagram">
+      <svg viewBox="0 0 820 180" role="img" aria-label="Playback: client gets manifest from metadata service then streams segments from the nearest CDN edge, falling back to origin on a miss">
+        <defs><marker id="arVP" markerWidth="9" markerHeight="9" refX="7" refY="4.5" orient="auto"><path d="M0,0 L9,4.5 L0,9 z" fill="var(--accent)"/></marker>
+        <marker id="arVPd" markerWidth="9" markerHeight="9" refX="7" refY="4.5" orient="auto"><path d="M0,0 L9,4.5 L0,9 z" fill="var(--text-dim)"/></marker></defs>
+        <rect class="svg-box" x="10" y="60" width="90" height="56" rx="9"/><text class="svg-txt" x="55" y="84" text-anchor="middle">Player</text><text class="svg-sub" x="55" y="101" text-anchor="middle">client</text>
+        <rect class="svg-accent" x="150" y="18" width="150" height="48" rx="9"/><text class="svg-txt" x="225" y="40" text-anchor="middle">Metadata svc</text><text class="svg-sub" x="225" y="56" text-anchor="middle">returns manifest</text>
+        <rect class="svg-good" x="150" y="104" width="150" height="50" rx="9"/><text class="svg-txt" x="225" y="126" text-anchor="middle">CDN edge</text><text class="svg-sub" x="225" y="142" text-anchor="middle">nearest PoP</text>
+        <rect class="svg-box" x="360" y="104" width="150" height="50" rx="9"/><text class="svg-txt" x="435" y="126" text-anchor="middle">CDN origin</text><text class="svg-sub" x="435" y="142" text-anchor="middle">on cache miss</text>
+        <g class="svg-line-acc">
+          <line x1="100" y1="74" x2="148" y2="46" marker-end="url(#arVP)"/>
+          <line x1="100" y1="100" x2="148" y2="126" marker-end="url(#arVP)"/>
+        </g>
+        <line x1="300" y1="129" x2="358" y2="129" class="svg-line" stroke-dasharray="5 4" marker-end="url(#arVPd)"/>
+        <text class="svg-sub" x="120" y="60" text-anchor="start">1. manifest</text>
+        <text class="svg-sub" x="120" y="120" text-anchor="start">2. segments</text>
+      </svg>
+      <figcaption>The player first gets the manifest, then streams short segments from the nearest CDN edge. <strong>Adaptive bitrate</strong>: the player measures throughput and picks the highest rendition that won&#8217;t stall &mdash; dropping to 480p on a weak network, climbing to 4K on fibre. The origin is only hit on a cache miss.</figcaption>
+    </figure>
+
+    <h2 id="hard">7 &middot; The hard parts</h2>
+    <ul class="clean">
+      <li><strong>Transcoding throughput</strong>: split each video into chunks and transcode chunks in parallel across many workers, then stitch &mdash; turns a long serial job into a fast parallel one.</li>
+      <li><strong>Global delivery</strong>: a multi-tier CDN serves segments from the edge closest to each viewer; popular videos are pre-pushed to edges.</li>
+      <li><strong>Adaptive streaming</strong>: HLS/DASH segment the video so the client can switch quality mid-playback without re-buffering the whole stream.</li>
+      <li><strong>Cost control</strong>: egress dominates, so maximize CDN cache-hit ratio; tier cold videos to cheaper storage; transcode only the resolutions actually watched for long-tail content.</li>
+    </ul>
+
+        <div class="example" data-ex-added><span class="label">&#128205; Real example &mdash; CDN cache hit vs origin pull</span>
+      <p>A video is chopped into small segments (e.g. 4-second <code>.ts</code>/<code>.m4s</code> chunks). The CDN edge server near the viewer caches them, so only the <em>first</em> viewer in a region pays the slow trip to origin:</p>
+      <pre class="code">viewer in Mumbai requests  /video/abc/720p/segment_017.ts
+
+  edge (Mumbai) cache MISS  &rarr; pull from origin (US) ~180 ms, store with TTL=24h, serve
+  next Mumbai viewer, same segment  &rarr; cache HIT ~8 ms   (never touches origin)
+
+cache-hit ratio 95%  &rarr;  only 5% of requests reach origin
+  &rarr; origin bandwidth and cost drop ~20x; viewers get a nearby, fast copy</pre>
+      <p><strong>What this teaches:</strong> static, immutable segments are perfect for edge caching &mdash; popular content is served from a server milliseconds away while the origin handles only the long tail of misses. This is also how <strong>adaptive bitrate</strong> works: the player requests <code>720p</code> segments when bandwidth is good and silently switches to <code>360p</code> chunks when it drops, because each quality is just a different set of cached segment URLs. Measure success by cache-hit ratio and rebuffer rate, not raw throughput.</p>
+    </div>
+
+    <h2 id="scale">8 &middot; Scaling &amp; failure</h2>
+    <ul class="clean">
+      <li><strong>Storage</strong>: object storage scales horizontally; hot/cold tiering controls cost.</li>
+      <li><strong>Uploads</strong> are resumable, so a dropped connection continues rather than restarts; transcoding jobs retry idempotently with a dead-letter queue.</li>
+      <li><strong>Delivery</strong>: if an edge fails, requests route to another edge or origin; players gracefully degrade quality rather than stall.</li>
+      <li><strong>View counts</strong> ride the analytics pipeline &mdash; eventually consistent, never on the playback hot path.</li>
+    </ul>
+
+    <h2 id="tradeoffs">9 &middot; Trade-offs</h2>
+    <ul class="clean">
+      <li><strong>Pre-transcoding</strong> many renditions costs storage &amp; compute up front but delivers smooth adaptive playback &mdash; worth it for popular content; lazy-transcode the long tail.</li>
+      <li><strong>CDN</strong> cost vs latency &mdash; we spend on edge delivery because viewer experience and origin offload demand it.</li>
+      <li><strong>Eventual consistency</strong> for view counts &mdash; correctness here isn&#8217;t worth latency.</li>
+    </ul>
+    <div class="say"><span class="label">Say it like a director</span><p>&ldquo;This is a delivery problem, not a database problem. Bytes go straight to object storage, a parallel chunked transcoding pipeline produces adaptive renditions, and a multi-tier CDN does the heavy lifting at the edge. I&#8217;d obsess over cache-hit ratio and storage tiering, because egress and storage are where the money goes at this scale.&rdquo;</p></div>
+
+    
+        <h2 id="subsystems">Key sub-systems</h2>
+    <ul class="clean">
+      <li><strong>Upload service</strong> &mdash; resumable, direct-to-blob.</li>
+      <li><strong>Transcoding pipeline</strong> &mdash; chunked, parallel renditions.</li>
+      <li><strong>Object storage</strong> &mdash; segments + manifests.</li>
+      <li><strong>CDN</strong> &mdash; multi-tier edge delivery.</li>
+      <li><strong>Metadata + view counts</strong> &mdash; DB + async analytics.</li>
+    </ul>
+    <h2 id="bottlenecks">Bottlenecks &amp; what to optimize next</h2>
+    <ul class="clean">
+      <li>Egress/storage dominate cost &mdash; maximize CDN cache-hit ratio and tier cold video.</li>
+      <li>Transcoding is compute-heavy &mdash; chunk and parallelize; lazy-transcode the long tail.</li>
+    </ul>
+    <h2 id="levels">Senior &middot; Staff &middot; Principal</h2>
+    <div class="ladder">
+      <div class="lv s"><span class="tier">Senior</span><p>Builds the transcoding pipeline + adaptive CDN delivery.</p></div>
+      <div class="lv t"><span class="tier">Staff</span><p>Handles parallel chunked transcoding, ABR, and cache/storage economics.</p></div>
+      <div class="lv p"><span class="tier">Principal</span><p>Raises per-title encoding/ML bitrate optimization, live streaming, and global rights/geo-restrictions.</p></div>
+    </div>
+    <h2 id="faq">Common follow-up questions</h2>
+    <details class="qa"><summary>Why transcode into many resolutions?</summary><div class="body"><p>Adaptive streaming lets the player pick the best quality for the current network; pre-making renditions enables smooth playback without re-buffering.</p></div></details>
+    <details class="qa"><summary>Why is the CDN essential?</summary><div class="body"><p>Egress to billions of viewers from origin would be impossibly expensive and slow; the CDN serves segments from the edge nearest each viewer.</p></div></details>
+    <details class="qa"><summary>How do you control cost?</summary><div class="body"><p>Maximize cache-hit ratio, tier rarely-watched video to cheap storage, and only pre-transcode popular content.</p></div></details>
+
+    <div class="recap"><span class="label">&#129504; Remember it</span>
+      <p>Video is a <span class="hook">delivery problem</span> &mdash; CDN + adaptive streaming, not a database.</p>
+      <ul>
+        <li>Upload &rarr; parallel chunked transcoding into many renditions.</li>
+        <li>Playback &rarr; adaptive bitrate from the nearest CDN edge.</li>
+        <li>Cost = egress + storage; maximize cache hits, tier cold video.</li>
+      </ul>
+    </div>
+
+    <div class="pagenav">
+      <a class="card" href="sd-chat.html"><span class="tag">&larr; Previous</span><h3>Chat System</h3></a>
+      <a class="card" href="sd-rate-limiter.html"><span class="tag">Next deep-dive &rarr;</span><h3>Rate Limiter</h3></a>
+    </div>
+  </main>
+</div>
+</div>
+
+<script src="assets/js/main.js"></script>
+</body>
+</html>

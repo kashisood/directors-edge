@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="warm">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Cloud-Native &amp; AI-Native &mdash; in Real Terms — Director's Edge</title>
+<meta name="description" content="Two overused phrases, decoded into what they actually mean for how you build: elastic, automated, failure-tolerant systems (cloud-native) and products designed around AI as their backbone (AI-native)." />
+<link rel="preconnect" href="https://fonts.googleapis.com" /><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="assets/css/styles.css" />
+</head>
+<body data-theme="warm">
+<section class="hero"><span class="eyebrow">Insight &middot; Modern architecture</span><h1>Cloud-Native &amp; AI-Native &mdash; in Real Terms</h1><p class="lead">Two overused phrases, decoded into what they actually mean for how you build: elastic, automated, failure-tolerant systems (cloud-native) and products designed around AI as their backbone (AI-native).</p></section>
+<div class="wrap section"><div class="page-layout">
+  <aside class="toc"><strong>On this page</strong>
+    <a href="#cloud">Cloud-native, in real terms</a>
+    <a href="#ai">AI-native, in real terms</a>
+  </aside>
+  <main>
+    <div class="story"><span class="label">&#128214; The story</span>
+      <p>&lsquo;Cloud-native&rsquo; and &lsquo;AI-native&rsquo; get thrown around as buzzwords. In real terms they each describe a <em>way of building</em> &mdash; not just <em>where</em> you run (the cloud) or <em>that</em> you use AI, but how the whole system is designed around those things from the start.</p>
+      <p>Cloud-native means designed to exploit the cloud's elasticity and managed services. AI-native means designed so that AI is the product's backbone, not a feature bolted on the side.</p>
+    </div>
+        <div class="tools"><span class="tlabel">&#128295; Cloud-native toolchain</span><span class="tool">Docker</span><span class="tool">Kubernetes</span><span class="tool">Terraform</span><span class="tool">Helm</span><span class="tool">Argo CD</span><span class="tool">Prometheus</span><span class="tool">Grafana</span><span class="tool">AWS / GCP / Azure</span></div>
+
+    <h2 id="cloud">Cloud-native &mdash; in real terms</h2>
+<p>A cloud-native system is built to be elastic, resilient, and operated by automation &mdash; treating servers as disposable &ldquo;cattle, not pets.&rdquo; Concretely, it usually means:</p>
+    <ul class="clean">
+      <li><strong>Containers</strong> &mdash; package the app + its dependencies so it runs identically everywhere (Docker).</li>
+      <li><strong>Orchestration</strong> &mdash; something (Kubernetes/serverless) schedules, heals, and scales those containers automatically.</li>
+      <li><strong>Managed services</strong> &mdash; rent databases, queues, and storage from the cloud instead of running them yourself.</li>
+      <li><strong>Elasticity / autoscaling</strong> &mdash; capacity grows and shrinks with demand; you pay for what you use.</li>
+      <li><strong>Infrastructure as code</strong> &mdash; the environment is defined in version-controlled files (Terraform), not clicked together by hand.</li>
+      <li><strong>CI/CD</strong> &mdash; automated pipelines build, test, and deploy small changes frequently.</li>
+      <li><strong>Design for failure</strong> &mdash; redundancy, health checks, and graceful degradation; any node can vanish.</li>
+      <li><strong>Observability built in</strong> &mdash; metrics, logs, and traces from day one.</li>
+    </ul>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Traditional</th><th>Cloud-native</th></tr></thead>
+      <tbody>
+        <tr><td>Long-lived servers you patch by hand (&ldquo;pets&rdquo;)</td><td>Disposable, automated instances (&ldquo;cattle&rdquo;)</td></tr>
+        <tr><td>Fixed capacity, provisioned for peak</td><td>Elastic capacity, pay-per-use</td></tr>
+        <tr><td>Big, infrequent releases</td><td>Small, frequent, automated deploys</td></tr>
+        <tr><td>Run your own DB/queue/storage</td><td>Lean on managed cloud services</td></tr>
+        <tr><td>Recover by fixing the broken box</td><td>Replace the box; design assumes failure</td></tr>
+      </tbody></table></div>
+    <div class="say"><span class="label">Say it like a director</span><p>&ldquo;Cloud-native isn&#8217;t &lsquo;we run on AWS&rsquo; &mdash; it&#8217;s that our systems are containerized, autoscaling, defined as code, and designed to survive any single failure, so growth and recovery are automatic rather than heroic.&rdquo;</p></div>
+    <h2 id="ai">AI-native &mdash; in real terms</h2>
+<p>An AI-native product is designed <em>around</em> AI &mdash; the model and its data loop are core architecture, not a chatbot stapled on. In practice that means:</p>
+    <ul class="clean">
+      <li><strong>AI on the critical path</strong> &mdash; the core experience (answering, generating, deciding) is powered by models, with classic code as the scaffolding around them.</li>
+      <li><strong>RAG over raw prompting</strong> &mdash; the system retrieves your own current data and feeds it to the model, so answers are grounded and sourced.</li>
+      <li><strong>Agents &amp; tools</strong> &mdash; the AI can take actions (call APIs, run steps), not just chat.</li>
+      <li><strong>Evals as tests</strong> &mdash; because output is non-deterministic, you measure quality with systematic evaluations, like unit tests for AI.</li>
+      <li><strong>Guardrails &amp; human-in-the-loop</strong> &mdash; constrain what the AI can say/do; keep a human on high-stakes actions.</li>
+      <li><strong>Token cost &amp; latency are first-class</strong> &mdash; you design for the dollars-per-request and seconds-per-response of model calls.</li>
+      <li><strong>A data flywheel</strong> &mdash; usage produces data that improves the product (better retrieval, better evals, fine-tuning).</li>
+      <li><strong>AI in the SDLC</strong> &mdash; the team itself builds with agentic coding tools, shifting from writing every line to directing and verifying.</li>
+    </ul>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Bolt-on AI</th><th>AI-native</th></tr></thead>
+      <tbody>
+        <tr><td>A chatbot added to an existing app</td><td>AI is the core of the experience</td></tr>
+        <tr><td>One-off prompts, no measurement</td><td>Evals gate quality like tests</td></tr>
+        <tr><td>Model answers from training only</td><td>RAG grounds answers in your data</td></tr>
+        <tr><td>AI only chats</td><td>Agents take actions via tools (incl. MCP)</td></tr>
+        <tr><td>Cost/latency an afterthought</td><td>Token cost &amp; latency are designed for</td></tr>
+      </tbody></table></div>
+    <div class="callout"><span class="label">How they connect</span><p>AI-native almost always rides on cloud-native foundations: elastic GPU/inference capacity, managed vector stores, CI/CD that now includes evals, and observability extended to model quality and cost. See the <a href="ai-insights.html">AI Insights</a> page for the building blocks (RAG, agents, MCP).</p></div>
+    <div class="recap"><span class="label">&#129504; Remember it</span>
+      <p>Cloud-native = <span class="hook">built for elasticity &amp; automation</span>; AI-native = <span class="hook">built around AI as the backbone</span>.</p>
+      <ul>
+        <li>Cloud-native: containers, orchestration, IaC, autoscale, design-for-failure.</li>
+        <li>AI-native: RAG, agents, evals-as-tests, guardrails, token cost/latency by design.</li>
+        <li>AI-native usually sits on cloud-native foundations.</li>
+      </ul>
+    </div>
+
+    <div class="pagenav">
+      <a class="card" href="scaling-0-to-1m.html"><span class="tag">&larr; Previous</span><h3>Scaling 0&rarr;1M</h3></a>
+      <a class="card" href="ai-insights.html"><span class="tag">Next insight &rarr;</span><h3>AI Insights</h3></a>
+    </div>
+  </main>
+</div></div>
+<script src="assets/js/main.js"></script>
+</body>
+</html>

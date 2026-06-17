@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="warm">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Design an Observability / Metrics System — Director's Edge</title>
+<meta name="description" content="System design deep-dive: Design an Observability / Metrics System." />
+<link rel="preconnect" href="https://fonts.googleapis.com" /><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="assets/css/styles.css" />
+</head>
+<body data-theme="warm">
+<section class="hero"><span class="eyebrow">System design deep-dive</span><h1>Design an Observability / Metrics System</h1><p class="lead">A deep-dive into telemetry at scale: high-cardinality time-series ingestion, downsampling and retention tiers, and alerting.</p></section>
+<div class="wrap section"><div class="page-layout">
+  <aside class="toc"><strong>On this page</strong>
+    <a href="#think">How to think (step by step)</a>
+    <a href="#reqs">1 · Requirements</a>
+    <a href="#arch">2 · Architecture</a>
+    <a href="#hard">3 · The hard parts</a>
+    <a href="#trade">4 · Trade-offs</a>
+    <a href="#subsystems">Key sub-systems</a>
+    <a href="#bottlenecks">Bottlenecks</a>
+    <a href="#levels">Senior / Staff / Principal</a>
+    <a href="#faq">Follow-up Q&amp;A</a>
+  </aside>
+  <main>
+    <div class="callout"><span class="label">&#11088; At Google</span><p>Drive it top-down: requirements &rarr; scale &rarr; design &rarr; bottleneck &rarr; trade-offs. Back to <a href="system-design-cases.html">System Design II</a>.</p></div>
+    <div class="story"><span class="label">&#128214; The story</span>
+      <p>You can&#8217;t run what you can&#8217;t see, so every service emits a firehose of metrics, logs, and traces. The trouble is <em>cardinality</em> &mdash; every unique combination of labels is its own series, and they explode.</p>
+      <p>So a metrics system ingests time-series at scale, stores recent data at high resolution and downsamples older data, and layers a query engine and alerting on top &mdash; spending storage where it earns its keep.</p>
+    </div>
+            <div class="tools"><span class="tlabel">&#128295; Typical tools</span><span class="tool">Prometheus</span><span class="tool">Grafana</span><span class="tool">Datadog</span><span class="tool">OpenTelemetry</span><span class="tool">Loki</span></div>
+
+    <h2 id="think">How to think about it &mdash; step by step</h2>
+    <div class="steps">
+      <div class="step"><h4>Start from the purpose</h4><p>You can't operate what you can't see. <span class="why">Why:</span> the system must answer new questions, not just known ones.</p></div>
+      <div class="step"><h4>Name the cost driver: cardinality</h4><p>Every unique combination of labels is its own series, and they explode. <span class="why">Why:</span> this dominates storage and query cost.</p></div>
+      <div class="step"><h4>Tier the data</h4><p>Keep recent data high-resolution; downsample old data. <span class="why">Why:</span> you rarely need per-second detail from last month.</p></div>
+      <div class="step"><h4>Add query + alerting</h4><p>A query layer powers dashboards; an engine evaluates alert rules continuously. <span class="why">Why:</span> seeing and being warned are different jobs.</p></div>
+      <div class="step"><h4>Name the trade-off</h4><p>Resolution/retention vs cost; cardinality limits vs granularity. <span class="why">Why:</span> observability budgets are real.</p></div>
+    </div>
+
+    <h2 id="reqs">1 &middot; Requirements</h2>
+<p><strong>Functional:</strong> ingest metrics (and logs/traces), query them, and alert. <strong>Non-functional:</strong> high-volume, high-cardinality, near-real-time, cost-controlled.</p>    <h2 id="arch">2 &middot; Architecture</h2>
+    <figure class="diagram">
+<svg viewBox="0 0 800 180" role="img" aria-label="Observability / metrics system"><defs><marker id="m" markerWidth="9" markerHeight="9" refX="7" refY="4.5" orient="auto"><path d="M0,0 L9,4.5 L0,9 z" fill="var(--accent)"/></marker></defs><rect class="svg-box" x="8" y="64" width="96" height="52" rx="9"/><text class="svg-txt" x="56" y="88" text-anchor="middle">Agents</text><text class="svg-sub" x="56" y="105" text-anchor="middle">push metrics</text><rect class="svg-accent" x="124" y="64" width="120" height="52" rx="9"/><text class="svg-txt" x="184" y="88" text-anchor="middle">Ingest tier</text><rect class="svg-good" x="264" y="12" width="160" height="44" rx="9"/><text class="svg-txt" x="344" y="32" text-anchor="middle">TSDB</text><text class="svg-sub" x="344" y="49" text-anchor="middle">time-series + rollups</text><rect class="svg-box" x="264" y="118" width="160" height="44" rx="9"/><text class="svg-txt" x="344" y="138" text-anchor="middle">Logs / traces</text><text class="svg-sub" x="344" y="155" text-anchor="middle">store</text><rect class="svg-accent2" x="444" y="64" width="140" height="52" rx="9"/><text class="svg-txt" x="514" y="88" text-anchor="middle">Query layer</text><text class="svg-sub" x="514" y="105" text-anchor="middle">dashboards</text><rect class="svg-box" x="604" y="64" width="150" height="52" rx="9"/><text class="svg-txt" x="679" y="88" text-anchor="middle">Alerting</text><text class="svg-sub" x="679" y="105" text-anchor="middle">rules &rarr; notify</text><line class="svg-line-acc" x1="104" y1="90" x2="122" y2="90" marker-end="url(#m)"/><line class="svg-line-acc" x1="244" y1="82" x2="262" y2="34" marker-end="url(#m)"/><line class="svg-line-acc" x1="244" y1="98" x2="262" y2="140" marker-end="url(#m)"/><line class="svg-line-acc" x1="424" y1="60" x2="442" y2="82" marker-end="url(#m)"/><line class="svg-line-acc" x1="584" y1="90" x2="602" y2="90" marker-end="url(#m)"/></svg>
+      <figcaption>Agents push metrics to an ingestion tier into a time-series DB with downsampling and retention tiers; logs and traces are stored alongside. A query layer powers dashboards and an alerting engine evaluates rules and notifies.</figcaption>
+    </figure>
+    <h2 id="hard">3 &middot; The hard parts</h2>
+    <ul class="clean">
+      <li><strong>Cardinality</strong>: each unique label-set is a series; high cardinality explodes storage and query cost &mdash; limit labels, aggregate.</li>
+      <li><strong>Retention tiers</strong>: keep recent data high-resolution, downsample (roll up) older data to control cost.</li>
+      <li><strong>Alerting</strong>: evaluate rules continuously with minimal lag; dedupe and route alerts.</li>
+    </ul>
+    <h2 id="trade">4 &middot; Trade-offs</h2>
+    <ul class="clean">
+      <li>Resolution/retention vs storage cost (downsample old data).</li>
+      <li>Cardinality limits vs query granularity.</li>
+    </ul>
+        <h2 id="subsystems">Key sub-systems</h2>
+    <ul class="clean">
+      <li><strong>Agents</strong> &mdash; push metrics/logs/traces.</li>
+      <li><strong>Ingestion tier</strong> &mdash; scalable intake.</li>
+      <li><strong>TSDB</strong> &mdash; time-series + rollups.</li>
+      <li><strong>Query layer</strong> &mdash; dashboards.</li>
+      <li><strong>Alerting engine</strong> &mdash; rules &rarr; notify.</li>
+    </ul>
+    <h2 id="bottlenecks">Bottlenecks &amp; what to optimize next</h2>
+    <ul class="clean">
+      <li>Cardinality explodes storage/query cost &mdash; limit labels and aggregate.</li>
+      <li>Old high-res data is expensive &mdash; downsample with retention tiers.</li>
+    </ul>
+    <h2 id="levels">Senior &middot; Staff &middot; Principal</h2>
+    <div class="ladder">
+      <div class="lv s"><span class="tier">Senior</span><p>Builds ingestion + TSDB + alerting.</p></div>
+      <div class="lv t"><span class="tier">Staff</span><p>Handles cardinality control, retention tiers, and query performance.</p></div>
+      <div class="lv p"><span class="tier">Principal</span><p>Raises traces/exemplars correlation, SLO-based alerting, and cost governance at fleet scale.</p></div>
+    </div>
+    <h2 id="faq">Common follow-up questions</h2>
+    <details class="qa"><summary>Why is cardinality the cost driver?</summary><div class="body"><p>Each unique combination of metric labels is its own time series; high cardinality multiplies storage and slows queries.</p></div></details>
+    <details class="qa"><summary>How do you control storage cost?</summary><div class="body"><p>Keep recent data high-resolution and downsample older data into rollups via retention tiers.</p></div></details>
+    <details class="qa"><summary>Metrics vs logs vs traces?</summary><div class="body"><p>Metrics = cheap aggregates ('is it down?'); logs = detailed events; traces = a request's path across services ('why is this slow?').</p></div></details>
+
+    <div class="recap"><span class="label">&#129504; Remember it</span>
+      <p>Observability = <span class="hook">time-series ingest + downsampling/retention + alerting</span>.</p>
+      <ul>
+        <li>High cardinality is the cost driver &mdash; limit labels.</li>
+        <li>Recent = high-res; old = downsampled rollups.</li>
+        <li>Query layer + alerting on top of the TSDB.</li>
+      </ul>
+    </div>
+
+    <div class="pagenav">
+      <a class="card" href="sd-geo-search.html"><span class="tag">&larr; Previous</span><h3>Geospatial Search</h3></a>
+      <a class="card" href="sd-stock-exchange.html"><span class="tag">Next &rarr;</span><h3>Stock Exchange</h3></a>
+    </div>
+  </main>
+</div></div>
+<script src="assets/js/main.js"></script>
+</body>
+</html>

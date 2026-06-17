@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="warm">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Design a Distributed Rate Limiter — Director's Edge</title>
+<meta name="description" content="In-depth system design deep-dive: Design a Distributed Rate Limiter — requirements, capacity estimation, API, data model, architecture diagram, scaling, failure handling, and trade-offs." />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="assets/css/styles.css" />
+</head>
+<body data-theme="warm">
+
+<section class="hero">
+  <span class="eyebrow">System design deep-dive</span>
+  <h1>Design a Distributed Rate Limiter</h1>
+  <p class="lead">A technical deep-dive into rate limiting across a fleet: algorithm choice (token bucket), atomic distributed counters in Redis, the latency-vs-accuracy trade-off, and fail-open behavior.</p>
+</section>
+
+<div class="wrap section">
+<div class="page-layout">
+  <aside class="toc">
+    <strong>On this page</strong>
+    <a href="#think">How to think (step by step)</a>
+    <a href="#reqs">1 · Requirements</a>
+    <a href="#capacity">2 · Capacity</a>
+    <a href="#algos">3 · Algorithm</a>
+    <a href="#arch">4 · Architecture</a>
+    <a href="#hard">5 · The hard part</a>
+    <a href="#fail">6 · Failure mode</a>
+    <a href="#tradeoffs">7 · Trade-offs</a>
+    <a href="#subsystems">Key sub-systems</a>
+    <a href="#bottlenecks">Bottlenecks</a>
+    <a href="#levels">Senior / Staff / Principal</a>
+    <a href="#faq">Follow-up Q&amp;A</a>
+  </aside>
+  <main>
+    <div class="story"><span class="label">&#128214; The story</span>
+      <p>The trap in a rate limiter is thinking it&#8217;s about counting. It&#8217;s really about <em>counting the same thing from many machines at once, in under a millisecond, without lying</em>.</p>
+      <p>So the design is a token bucket whose check-and-decrement is a single atomic operation in a shared Redis &mdash; enforced right at the gateway, before any expensive work. The senior touches are two: push a local bucket per node that reconciles periodically to kill the per-request hop, and fail <em>open</em> so the limiter can never become the outage it was meant to prevent.</p>
+    </div>
+
+    <div class="callout"><span class="label">&#11088; At Google</span><p>Drive this top-down: requirements &rarr; scale &rarr; design &rarr; deep-dive on the bottleneck &rarr; trade-offs. Narrate assumptions out loud; that structured reasoning is what the hiring committee scores. Back to <a href="system-design-cases.html">System Design II</a>.</p></div>
+
+            <div class="tools"><span class="tlabel">&#128295; Typical tools</span><span class="tool">Redis</span><span class="tool">NGINX</span><span class="tool">Envoy</span><span class="tool">Kong</span><span class="tool">Lua</span></div>
+
+    <h2 id="think">How to think about it &mdash; step by step</h2>
+    <div class="steps">
+      <div class="step"><h4>Pin down the limit's scope</h4><p>Per user? Per IP? Per API key? And is the limit global across all servers? <span class="why">Why:</span> a 'global' limit is much harder than a per-server one.</p></div>
+      <div class="step"><h4>Pick a counting model</h4><p>A token bucket: a bucket refills at a steady rate, each request takes a token, empty means reject. <span class="why">Why:</span> it allows short bursts but enforces an average &mdash; what most APIs actually want.</p></div>
+      <div class="step"><h4>Share the count safely</h4><p>Keep buckets in a shared store (Redis) and do check-and-decrement atomically. <span class="why">Why:</span> many servers hit the same key at once, so the update must be a single safe operation.</p></div>
+      <div class="step"><h4>Kill the latency cost</h4><p>At extreme scale, keep a local bucket per server that syncs with Redis periodically. <span class="why">Why:</span> avoids a network round-trip on every single request.</p></div>
+      <div class="step"><h4>Decide the failure behavior</h4><p>If the limiter's store is down, allow traffic (fail open). <span class="why">Why:</span> the limiter must never be the thing that takes your whole API down.</p></div>
+    </div>
+
+    <h2 id="reqs">1 &middot; Requirements</h2>
+    <p><strong>Functional:</strong> cap requests per key (per user, IP, or API key) to N per time window; configurable rules per endpoint; reject over-limit requests with HTTP <code>429</code> + a <code>Retry-After</code> header. <strong>Non-functional:</strong> works across a fleet of gateway nodes (a global limit, not per-node), adds sub-millisecond latency, and is itself highly available.</p>
+
+    <h2 id="capacity">2 &middot; Capacity</h2>
+    <p>If the fleet handles ~1M req/s, the limiter does ~1M checks/s. Each check is a tiny in-memory counter op &mdash; the design constraint is <strong>latency and coordination</strong> (all nodes must agree on the count), not storage.</p>
+
+    <h2 id="algos">3 &middot; Algorithm choice</h2>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Algorithm</th><th>Idea</th><th>Trade-off</th></tr></thead>
+      <tbody>
+        <tr><td>Fixed window</td><td>Count per clock window (e.g. per minute).</td><td>Simplest; allows 2&times; bursts at window boundaries.</td></tr>
+        <tr><td>Sliding window log</td><td>Store timestamps of each request.</td><td>Exact; memory-heavy at scale.</td></tr>
+        <tr><td>Sliding window counter</td><td>Weighted blend of current + previous window.</td><td>Good accuracy, cheap &mdash; a common production pick.</td></tr>
+        <tr><td><strong>Token bucket</strong></td><td>Bucket of N tokens refilling at a steady rate; each request takes one.</td><td>Smooth, allows controlled bursts; the usual default.</td></tr>
+      </tbody>
+    </table></div>
+
+    <h2 id="arch">4 &middot; Architecture</h2>
+    <figure class="diagram">
+      <svg viewBox="0 0 780 200" role="img" aria-label="Rate limiter at the gateway checks a shared Redis counter and either forwards to backend or returns 429">
+        <defs><marker id="arRL" markerWidth="9" markerHeight="9" refX="7" refY="4.5" orient="auto"><path d="M0,0 L9,4.5 L0,9 z" fill="var(--accent)"/></marker>
+        <marker id="arRLb" markerWidth="9" markerHeight="9" refX="7" refY="4.5" orient="auto"><path d="M0,0 L9,4.5 L0,9 z" fill="var(--bad)"/></marker></defs>
+        <rect class="svg-box" x="10" y="74" width="84" height="52" rx="9"/><text class="svg-txt" x="52" y="105" text-anchor="middle">Client</text>
+        <rect class="svg-accent" x="120" y="74" width="170" height="52" rx="9"/><text class="svg-txt" x="205" y="96" text-anchor="middle">API gateway</text><text class="svg-sub" x="205" y="113" text-anchor="middle">limiter middleware</text>
+        <rect class="svg-good" x="320" y="74" width="150" height="52" rx="9"/><text class="svg-txt" x="395" y="96" text-anchor="middle">Redis</text><text class="svg-sub" x="395" y="113" text-anchor="middle">token buckets (atomic)</text>
+        <rect class="svg-box" x="540" y="26" width="150" height="48" rx="9"/><text class="svg-txt" x="615" y="48" text-anchor="middle">Backend</text><text class="svg-sub" x="615" y="64" text-anchor="middle">if allowed</text>
+        <rect class="svg-accent2" x="540" y="126" width="150" height="48" rx="9"/><text class="svg-txt" x="615" y="148" text-anchor="middle">429 Too Many</text><text class="svg-sub" x="615" y="164" text-anchor="middle">+ Retry-After</text>
+        <g class="svg-line-acc">
+          <line x1="94" y1="100" x2="118" y2="100" marker-end="url(#arRL)"/>
+          <line x1="290" y1="100" x2="318" y2="100" marker-end="url(#arRL)"/>
+          <line x1="290" y1="90" x2="538" y2="56" marker-end="url(#arRL)"/>
+        </g>
+        <line x1="290" y1="112" x2="538" y2="150" class="svg-line" stroke-width="2" marker-end="url(#arRLb)"/>
+        <text class="svg-sub" x="360" y="92" text-anchor="middle">check &amp; decrement</text>
+      </svg>
+      <figcaption>The limiter runs at the gateway, before any expensive work. It atomically checks-and-decrements the caller&#8217;s token bucket in a shared Redis (one Lua script so check+decrement is a single atomic op); if a token remains the request proceeds, otherwise it&#8217;s rejected with 429 + Retry-After.</figcaption>
+    </figure>
+
+    <h2 id="hard">5 &middot; The hard part &mdash; distributed accuracy without latency</h2>
+    <ul class="clean">
+      <li><strong>Atomicity</strong>: many gateway nodes hit the same key concurrently, so check-then-decrement must be atomic &mdash; do it in one Redis Lua script (or <code>INCR</code> + TTL) to avoid races.</li>
+      <li><strong>Centralized vs local</strong>: a shared Redis is accurate but adds a network hop on every request. A common optimization is a <strong>local token bucket per node</strong> that periodically reconciles with Redis &mdash; near-zero latency at the cost of slight over-admission.</li>
+      <li><strong>Hot keys</strong>: a single abusive key concentrates load on one shard; mitigate with local pre-checks and key sharding.</li>
+    </ul>
+
+        <div class="example" data-ex-added><span class="label">&#128205; Real example &mdash; a circuit breaker</span>
+      <p>When a downstream service is failing, hammering it with retries makes things worse. A <strong>circuit breaker</strong> wraps the call in a tiny state machine that &ldquo;trips&rdquo; after too many failures and stops sending traffic for a cooldown:</p>
+      <pre class="code">  CLOSED  &mdash;&mdash; failures &ge; threshold (e.g. 5 in 10s) &mdash;&mdash;&rarr;  OPEN
+  (normal,                                                  (fail fast: reject
+   calls flow)                                               instantly, don&#8217;t call)
+     &uarr;                                                         |
+     |                                                  after cooldown (e.g. 30s)
+  success                                                        |
+     |                                                           v
+  CLOSED  &lt;&mdash;&mdash; 1 trial call succeeds &mdash;&mdash;  HALF-OPEN  &mdash;&mdash; trial fails &mdash;&mdash;&rarr; OPEN
+                                          (let ONE request through to test)</pre>
+      <p><strong>What this teaches:</strong> <strong>CLOSED</strong> = healthy, calls pass through. After enough failures it flips to <strong>OPEN</strong> and fails instantly &mdash; this protects the struggling service <em>and</em> keeps your own threads from piling up waiting on timeouts (the real cause of cascading outages). After a cooldown it goes <strong>HALF-OPEN</strong>, lets a single probe through, and either recovers (back to CLOSED) or re-trips. Libraries like Resilience4j and Envoy/Istio do exactly this; pair it with a timeout, a bounded retry with backoff, and a fallback.</p>
+    </div>
+
+    <h2 id="fail">6 &middot; Failure mode &mdash; fail open or closed?</h2>
+    <p>If the limiter&#8217;s store is unreachable, do we allow or block traffic? Most systems <strong>fail open</strong> (allow) so the rate limiter never takes the whole API down &mdash; better to briefly under-protect than to cause an outage. Security-critical limits may fail closed. Pair with a local in-memory fallback bucket so we still get coarse protection during a Redis blip.</p>
+
+    <h2 id="tradeoffs">7 &middot; Trade-offs</h2>
+    <ul class="clean">
+      <li><strong>Accuracy vs latency/cost</strong>: exact global counting needs a round-trip per request; local+sync trades a little accuracy for speed.</li>
+      <li><strong>Fail open</strong> (availability) vs <strong>fail closed</strong> (protection) &mdash; choose per use case.</li>
+    </ul>
+    <div class="say"><span class="label">Say it like a director</span><p>&ldquo;Token bucket in a shared Redis with an atomic check-and-decrement, enforced at the gateway. At very high volume I&#8217;d push a local bucket per node that reconciles periodically to kill the per-request hop, and I&#8217;d fail open so the limiter can never become the cause of an outage.&rdquo;</p></div>
+
+    
+        <h2 id="subsystems">Key sub-systems</h2>
+    <ul class="clean">
+      <li><strong>Gateway middleware</strong> &mdash; enforces limits before real work.</li>
+      <li><strong>Counter store</strong> &mdash; shared Redis holding token buckets.</li>
+      <li><strong>Atomic update</strong> &mdash; Lua script for check-and-decrement.</li>
+      <li><strong>Rules config</strong> &mdash; per-route/per-key limits.</li>
+      <li><strong>Local fallback</strong> &mdash; in-memory bucket if Redis is unreachable.</li>
+    </ul>
+    <h2 id="bottlenecks">Bottlenecks &amp; what to optimize next</h2>
+    <ul class="clean">
+      <li>The shared counter is the hot spot &mdash; shard by key and use local buckets that sync periodically.</li>
+      <li>A single abusive key creates a hot shard &mdash; pre-check locally before the shared store.</li>
+    </ul>
+    <h2 id="levels">Senior &middot; Staff &middot; Principal</h2>
+    <div class="ladder">
+      <div class="lv s"><span class="tier">Senior</span><p>Implements a token bucket in Redis enforced at the gateway.</p></div>
+      <div class="lv t"><span class="tier">Staff</span><p>Handles atomic distributed counting, the local-cache latency optimization, and fail-open behavior.</p></div>
+      <div class="lv p"><span class="tier">Principal</span><p>Raises multi-tier limits (user+IP+global), abuse/DDoS coordination, and fairness/quotas across tenants.</p></div>
+    </div>
+    <h2 id="faq">Common follow-up questions</h2>
+    <details class="qa"><summary>How do you count accurately across many servers?</summary><div class="body"><p>Keep the bucket in a shared store and make check-and-decrement a single atomic operation (Redis Lua) so concurrent requests can't race.</p></div></details>
+    <details class="qa"><summary>How do you avoid a network hop on every request?</summary><div class="body"><p>Keep a local token bucket per node that reconciles with the shared store periodically &mdash; near-zero latency, slight over-admission.</p></div></details>
+    <details class="qa"><summary>Fail open or closed if the store is down?</summary><div class="body"><p>Usually fail open so the limiter never causes an outage; security-critical limits may fail closed.</p></div></details>
+
+    <div class="recap"><span class="label">&#129504; Remember it</span>
+      <p>A limiter is <span class="hook">distributed counting that must be atomic, fast, and fail-open</span>.</p>
+      <ul>
+        <li>Token bucket; atomic check-and-decrement in shared Redis.</li>
+        <li>Enforce at the gateway, before expensive work.</li>
+        <li>Fail open &mdash; never let the limiter cause an outage.</li>
+      </ul>
+    </div>
+
+    <div class="pagenav">
+      <a class="card" href="sd-video.html"><span class="tag">&larr; Previous</span><h3>Video Streaming</h3></a>
+      <a class="card" href="sd-message-queue.html"><span class="tag">Next deep-dive &rarr;</span><h3>Message Queue</h3></a>
+    </div>
+  </main>
+</div>
+</div>
+
+<script src="assets/js/main.js"></script>
+</body>
+</html>

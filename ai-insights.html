@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="warm">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>AI Insights: LLMs, RAG, Agents &amp; MCP — Director's Edge</title>
+<meta name="description" content="The modern AI stack decoded in plain language &mdash; what an LLM is, how RAG grounds it in your data, how agents and multi-agent systems take action, what MCP standardizes, and how evals keep it production-grade." />
+<link rel="preconnect" href="https://fonts.googleapis.com" /><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="assets/css/styles.css" />
+</head>
+<body data-theme="warm">
+<section class="hero"><span class="eyebrow">Insight &middot; AI</span><h1>AI Insights: LLMs, RAG, Agents &amp; MCP</h1><p class="lead">The modern AI stack decoded in plain language &mdash; what an LLM is, how RAG grounds it in your data, how agents and multi-agent systems take action, what MCP standardizes, and how evals keep it production-grade.</p></section>
+<div class="wrap section"><div class="page-layout">
+  <aside class="toc"><strong>On this page</strong>
+    <a href="#llm">LLMs &mdash; the engine</a>
+    <a href="#rag">RAG</a>
+    <a href="#adapt">Prompt vs RAG vs fine-tune</a>
+    <a href="#agents">Agents &amp; agentic AI</a>
+    <a href="#multi">Multi-agent systems</a>
+    <a href="#mcp">MCP</a>
+    <a href="#quality">Evals &amp; guardrails</a>
+    <a href="#glossary">Glossary</a>
+  </aside>
+  <main>
+    <div class="story"><span class="label">&#128214; The story</span>
+      <p>AI moved fast, and the vocabulary got muddy. This page untangles the building blocks &mdash; from what a language model actually is, to how you ground it in your data (RAG), to giving it the ability to <em>act</em> (agents), coordinate (multi-agent), and connect to tools in a standard way (MCP).</p>
+      <p>Read it top to bottom and the buzzwords turn into a clear mental model you can reason and make decisions with.</p>
+    </div>
+        <div class="tools"><span class="tlabel">&#128295; AI build tools</span><span class="tool">LangChain</span><span class="tool">LlamaIndex</span><span class="tool">pgvector</span><span class="tool">Pinecone</span><span class="tool">Hugging Face</span><span class="tool">Ollama</span></div>
+
+    <h2 id="llm">LLMs &mdash; the engine</h2>
+    <ul class="clean">
+      <li><strong>LLM (Large Language Model)</strong> &mdash; a model trained on vast text that predicts the next <em>token</em> (a word-piece). Everything else is built on this one capability.</li>
+      <li><strong>Tokens</strong> &mdash; the unit models read/write; you pay per token and latency scales with them. ~4 characters &asymp; 1 token.</li>
+      <li><strong>Context window</strong> &mdash; how much text the model can &lsquo;see&rsquo; at once (the prompt + retrieved docs + history). Bigger = more context, more cost.</li>
+      <li><strong>Hallucination</strong> &mdash; a confident but wrong answer. The core reason we ground models with real data (RAG) and verify with evals.</li>
+      <li><strong>Prompting</strong> &mdash; how you instruct the model: be clear and specific, give examples, ask for steps, request a format. The cheapest lever before any heavier technique.</li>
+    </ul>
+    <h2 id="rag">RAG &mdash; grounding answers in your data</h2>
+<p>A plain model only knows its training data and can make things up. <strong>Retrieval-Augmented Generation</strong> fixes that: when a question comes in, you search your own knowledge base and hand the most relevant documents to the model as context, so the answer is current and sourced.</p>
+    <figure class="diagram">
+<svg viewBox="0 0 820 150" role="img" aria-label="RAG flow"><defs><marker id="m" markerWidth="9" markerHeight="9" refX="7" refY="4.5" orient="auto"><path d="M0,0 L9,4.5 L0,9 z" fill="var(--accent)"/></marker></defs><rect class="svg-box" x="8" y="52" width="90" height="46" rx="9"/><text class="svg-txt" x="53" y="73" text-anchor="middle">Question</text><rect class="svg-accent" x="120" y="52" width="120" height="46" rx="9"/><text class="svg-txt" x="180" y="73" text-anchor="middle">Retriever</text><text class="svg-sub" x="180" y="90" text-anchor="middle">embed query</text><rect class="svg-good" x="262" y="52" width="140" height="46" rx="9"/><text class="svg-txt" x="332" y="73" text-anchor="middle">Vector DB</text><text class="svg-sub" x="332" y="90" text-anchor="middle">top-k docs</text><rect class="svg-accent2" x="424" y="52" width="130" height="46" rx="9"/><text class="svg-txt" x="489" y="73" text-anchor="middle">LLM</text><text class="svg-sub" x="489" y="90" text-anchor="middle">query + docs</text><rect class="svg-good" x="576" y="52" width="150" height="46" rx="9"/><text class="svg-txt" x="651" y="73" text-anchor="middle">Grounded answer</text><text class="svg-sub" x="651" y="90" text-anchor="middle">+ sources</text><line class="svg-line-acc" x1="98" y1="75" x2="118" y2="75" marker-end="url(#m)"/><line class="svg-line-acc" x1="240" y1="75" x2="260" y2="75" marker-end="url(#m)"/><line class="svg-line-acc" x1="402" y1="75" x2="422" y2="75" marker-end="url(#m)"/><line class="svg-line-acc" x1="554" y1="75" x2="574" y2="75" marker-end="url(#m)"/></svg>
+      <figcaption>RAG: the question is turned into an embedding, used to fetch the most relevant documents from a vector database; those documents are added to the prompt so the LLM answers from your real data &mdash; and can cite sources.</figcaption>
+    </figure>
+    <ul class="clean">
+      <li><strong>Embeddings</strong> &mdash; turn text into vectors (numbers) that capture meaning, so &lsquo;car&rsquo; and &lsquo;automobile&rsquo; land near each other.</li>
+      <li><strong>Vector database</strong> &mdash; stores embeddings and finds the most similar ones fast; the storage layer behind RAG and semantic search.</li>
+    </ul>
+    <h2 id="adapt">Prompting vs RAG vs fine-tuning</h2>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Technique</th><th>What it does</th><th>Use when</th></tr></thead>
+      <tbody>
+        <tr><td>Prompting</td><td>Instruct the base model well</td><td>Always &mdash; the first and cheapest lever</td></tr>
+        <tr><td>RAG</td><td>Inject your current data at query time</td><td>You need up-to-date, sourced, company-specific answers</td></tr>
+        <tr><td>Fine-tuning</td><td>Retrain the model on examples</td><td>You need a specific style/format or a narrow task at low latency/cost</td></tr>
+      </tbody></table></div>
+    <div class="callout"><span class="label">Rule of thumb</span><p>Start with prompting, reach for RAG for knowledge, and fine-tune only when prompting + RAG can&#8217;t give the style, format, or cost you need. (More on this on the <a href="tech-radar.html">Tech Radar</a>.)</p></div>
+    <h2 id="agents">AI agents &amp; agentic AI</h2>
+<p>An <strong>AI agent</strong> is an LLM that can <em>act</em>, not just chat &mdash; it&#8217;s given tools (APIs, code execution, search) and runs a loop: reason about the goal, take an action, observe the result, and repeat until done. <strong>Agentic AI</strong> is the broader shift from &lsquo;AI answers questions&rsquo; to &lsquo;AI plans and executes multi-step work&rsquo; under human direction.</p>
+    <figure class="diagram">
+<svg viewBox="0 0 760 170" role="img" aria-label="Agent loop"><defs><marker id="m" markerWidth="9" markerHeight="9" refX="7" refY="4.5" orient="auto"><path d="M0,0 L9,4.5 L0,9 z" fill="var(--accent)"/></marker></defs><rect class="svg-accent" x="280" y="16" width="180" height="44" rx="9"/><text class="svg-txt" x="370" y="36" text-anchor="middle">LLM (reason)</text><text class="svg-sub" x="370" y="53" text-anchor="middle">plan next step</text><rect class="svg-good" x="520" y="90" width="180" height="44" rx="9"/><text class="svg-txt" x="610" y="110" text-anchor="middle">Tools / APIs</text><text class="svg-sub" x="610" y="127" text-anchor="middle">act</text><rect class="svg-accent2" x="60" y="90" width="180" height="44" rx="9"/><text class="svg-txt" x="150" y="110" text-anchor="middle">Observe result</text><text class="svg-sub" x="150" y="127" text-anchor="middle">feed back</text><line class="svg-line-acc" x1="370" y1="60" x2="560" y2="88" marker-end="url(#m)"/><line class="svg-line-acc" x1="560" y1="134" x2="260" y2="134" marker-end="url(#m)"/><line class="svg-line-acc" x1="150" y1="90" x2="330" y2="62" marker-end="url(#m)"/><text class="svg-sub" x="380" y="158" text-anchor="middle">loop: think &rarr; act &rarr; observe &rarr; repeat until done</text></svg>
+      <figcaption>The agent loop: the model reasons about the next step, calls a tool to act, observes the result, and feeds it back &mdash; repeating until the task is complete. Tools are what turn a chatbot into an agent.</figcaption>
+    </figure>
+    <h2 id="multi">Multi-agent systems</h2>
+<p>For complex work, one agent is split into several specialized agents coordinated by an <strong>orchestrator</strong> &mdash; e.g. a researcher, a coder, and a reviewer. This sidesteps context-window limits and lets each agent focus, at the cost of more coordination.</p>
+    <figure class="diagram">
+<svg viewBox="0 0 760 170" role="img" aria-label="Multi-agent"><defs><marker id="m" markerWidth="9" markerHeight="9" refX="7" refY="4.5" orient="auto"><path d="M0,0 L9,4.5 L0,9 z" fill="var(--accent)"/></marker></defs><rect class="svg-accent" x="290" y="16" width="180" height="44" rx="9"/><text class="svg-txt" x="380" y="36" text-anchor="middle">Orchestrator</text><text class="svg-sub" x="380" y="53" text-anchor="middle">plans &amp; delegates</text><rect class="svg-good" x="60" y="104" width="170" height="44" rx="9"/><text class="svg-txt" x="145" y="124" text-anchor="middle">Sub-agent</text><text class="svg-sub" x="145" y="141" text-anchor="middle">research</text><rect class="svg-good" x="295" y="104" width="170" height="44" rx="9"/><text class="svg-txt" x="380" y="124" text-anchor="middle">Sub-agent</text><text class="svg-sub" x="380" y="141" text-anchor="middle">code</text><rect class="svg-good" x="530" y="104" width="170" height="44" rx="9"/><text class="svg-txt" x="615" y="124" text-anchor="middle">Sub-agent</text><text class="svg-sub" x="615" y="141" text-anchor="middle">review</text><line class="svg-line-acc" x1="340" y1="60" x2="200" y2="102" marker-end="url(#m)"/><line class="svg-line-acc" x1="380" y1="60" x2="380" y2="102" marker-end="url(#m)"/><line class="svg-line-acc" x1="420" y1="60" x2="600" y2="102" marker-end="url(#m)"/></svg>
+      <figcaption>A multi-agent system: an orchestrator decomposes the goal and delegates to specialized sub-agents working in parallel, then combines their results. More capable than one agent, but more complex to coordinate.</figcaption>
+    </figure>
+    <h2 id="mcp">MCP &mdash; Model Context Protocol</h2>
+    <ul class="clean">
+      <li><strong>MCP</strong> is an open standard for connecting AI apps to external tools and data sources in a uniform way &mdash; think &lsquo;USB-C for AI tools&rsquo;.</li>
+      <li>Instead of custom-wiring every integration, a model speaks MCP to any compliant <em>MCP server</em> (your database, a SaaS app, a file store).</li>
+      <li>As organizations add many MCP servers, <strong>governing</strong> them &mdash; access, security, sprawl &mdash; becomes a real platform responsibility.</li>
+    </ul>
+        <div class="example" data-ex-added><span class="label">&#128205; Real example &mdash; embeddings &amp; cosine similarity</span>
+      <p>An <strong>embedding</strong> turns text into a list of numbers (a vector) so that similar meanings land close together. RAG and semantic search rank results by <strong>cosine similarity</strong> &mdash; the angle between two vectors, from 1 (identical) to 0 (unrelated):</p>
+      <pre class="code">embed("how do I reset my password")  &rarr; [0.81, 0.12, 0.55, ...]   (~1536 dims, shown tiny)
+
+compare to stored docs (cosine similarity, 1.0 = identical meaning):
+  "steps to recover your account login"   &rarr; 0.92  &#10003; top hit
+  "change account password settings"      &rarr; 0.88  &#10003;
+  "update billing card on file"            &rarr; 0.41
+  "our office holiday schedule"            &rarr; 0.09
+
+note: keyword search would MISS "recover your account login" &mdash; no shared words,
+      but the meaning is close, so the embedding ranks it #1.</pre>
+      <p><strong>What this teaches:</strong> embeddings capture <em>meaning</em>, not keywords &mdash; &ldquo;reset password&rdquo; and &ldquo;recover account login&rdquo; share almost no words but sit close in vector space. A RAG pipeline embeds your documents once, stores the vectors in a vector DB (Pinecone, pgvector, FAISS), then at query time embeds the question and returns the nearest chunks to feed the LLM. The quality of retrieval &mdash; chunk size, the embedding model, and how many neighbours you pull &mdash; usually matters more to answer quality than the LLM choice itself.</p>
+    </div>
+
+    <h2 id="quality">Evals &amp; guardrails &mdash; making it production-grade</h2>
+    <ul class="clean">
+      <li><strong>Evals</strong> &mdash; systematic tests of model output (accuracy, safety, format) so you manage quality with data, not vibes. The maturity signal that separates a demo from a product.</li>
+      <li><strong>Guardrails</strong> &mdash; constraints on what the model can say or do (input/output filters, allowed tools, human approval on high-stakes actions).</li>
+      <li><strong>Human-in-the-loop</strong> &mdash; keep a person on consequential decisions; let AI draft, humans approve.</li>
+    </ul>
+    <h2 id="glossary">One-line glossary</h2>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Term</th><th>In one line</th></tr></thead>
+      <tbody>
+        <tr><td>LLM</td><td>Next-token predictor trained on huge text</td></tr>
+        <tr><td>Token</td><td>The unit models read/write; you pay per token</td></tr>
+        <tr><td>Context window</td><td>How much text the model can see at once</td></tr>
+        <tr><td>RAG</td><td>Retrieve your docs, feed them to the model for grounded answers</td></tr>
+        <tr><td>Embedding</td><td>Text turned into meaning-vectors for similarity search</td></tr>
+        <tr><td>Vector DB</td><td>Stores embeddings; searches by meaning, not keywords</td></tr>
+        <tr><td>Agent</td><td>An LLM that acts via tools in a reason-act-observe loop</td></tr>
+        <tr><td>Agentic AI</td><td>The shift to AI that plans &amp; executes multi-step work</td></tr>
+        <tr><td>Multi-agent</td><td>Specialized agents coordinated by an orchestrator</td></tr>
+        <tr><td>MCP</td><td>Open standard to connect AI to tools/data uniformly</td></tr>
+        <tr><td>Eval</td><td>A systematic test of AI output quality</td></tr>
+        <tr><td>Guardrail</td><td>A constraint on what the AI may say or do</td></tr>
+      </tbody></table></div>
+    <div class="recap"><span class="label">&#129504; Remember it</span>
+      <p>Modern AI = <span class="hook">LLM + RAG (grounding) + agents (action) + MCP (tools) + evals (quality)</span>.</p>
+      <ul>
+        <li>RAG grounds answers in your data and cites sources.</li>
+        <li>Agents act via tools in a loop; multi-agent splits work across specialists.</li>
+        <li>MCP standardizes tool/data connections; evals + guardrails make it production-grade.</li>
+      </ul>
+    </div>
+
+    <div class="pagenav">
+      <a class="card" href="cloud-native.html"><span class="tag">&larr; Previous</span><h3>Cloud &amp; AI-Native</h3></a>
+      <a class="card" href="ai-tools.html"><span class="tag">Next insight &rarr;</span><h3>AI Tools &amp; Modes</h3></a>
+    </div>
+  </main>
+</div></div>
+<script src="assets/js/main.js"></script>
+</body>
+</html>

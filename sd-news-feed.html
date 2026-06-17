@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="warm">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Design a News Feed (Twitter / X timeline) — Director's Edge</title>
+<meta name="description" content="In-depth system design deep-dive: Design a News Feed (Twitter / X timeline) — requirements, capacity estimation, API, data model, architecture diagram, scaling, failure handling, and trade-offs." />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="assets/css/styles.css" />
+</head>
+<body data-theme="warm">
+
+<section class="hero">
+  <span class="eyebrow">System design deep-dive</span>
+  <h1>Design a News Feed (Twitter / X timeline)</h1>
+  <p class="lead">A full, technical walk-through of the canonical feed problem: how to serve a personalized home timeline to hundreds of millions of users with instant reads, using the precompute-on-write (fan-out) pattern.</p>
+</section>
+
+<div class="wrap section">
+<div class="page-layout">
+  <aside class="toc">
+    <strong>On this page</strong>
+    <a href="#think">How to think (step by step)</a>
+    <a href="#reqs">1 · Requirements</a>
+    <a href="#capacity">2 · Capacity</a>
+    <a href="#api">3 · API</a>
+    <a href="#data">4 · Data model</a>
+    <a href="#write">5 · Write path</a>
+    <a href="#read">6 · Read path</a>
+    <a href="#hard">7 · The hard part</a>
+    <a href="#scale">8 · Scaling</a>
+    <a href="#fail">9 · Failure</a>
+    <a href="#tradeoffs">10 · Trade-offs</a>
+    <a href="#subsystems">Key sub-systems</a>
+    <a href="#bottlenecks">Bottlenecks</a>
+    <a href="#levels">Senior / Staff / Principal</a>
+    <a href="#faq">Follow-up Q&amp;A</a>
+  </aside>
+  <main>
+    <div class="story"><span class="label">&#128214; The story</span>
+      <p>The whole design hangs on one number: people <em>read</em> their feed far more than they <em>post</em> &mdash; roughly fifty to one. So you do the expensive work on the rare event (the post) to make the constant event (the read) trivial.</p>
+      <p>That&#8217;s &lsquo;fan-out on write&rsquo;: when you post, workers push the tweet into each follower&#8217;s precomputed timeline, so reading is just fetching one ready-made list. The twist in the tale is the celebrity &mdash; pushing one post to 100M followers is a write storm &mdash; so you special-case them with pull-on-read. That hybrid is the punchline.</p>
+    </div>
+
+    <div class="callout"><span class="label">&#11088; At Google</span><p>Drive this top-down: requirements &rarr; scale &rarr; design &rarr; deep-dive on the bottleneck &rarr; trade-offs. Narrate assumptions out loud; that structured reasoning is what the hiring committee scores. Back to <a href="system-design-cases.html">System Design II</a>.</p></div>
+
+            <div class="tools"><span class="tlabel">&#128295; Typical tools</span><span class="tool">Cassandra</span><span class="tool">Redis</span><span class="tool">Apache Kafka</span><span class="tool">Memcached</span></div>
+
+    <h2 id="think">How to think about it &mdash; step by step</h2>
+    <div class="steps">
+      <div class="step"><h4>Anchor on the read/write ratio</h4><p>People scroll their feed far more than they post &mdash; roughly 50 to 1. <span class="why">Why:</span> this one number decides the whole design.</p></div>
+      <div class="step"><h4>Decide when to do the work</h4><p>Do the heavy lifting on the rare write, not the constant read: when you post, push the tweet into each follower's ready-made timeline. <span class="why">Why:</span> reading then becomes 'grab one prepared list' &mdash; instant.</p></div>
+      <div class="step"><h4>Store the prepared feeds</h4><p>Keep each user's timeline as a capped list in Redis; keep the tweets themselves in a scalable store. <span class="why">Why:</span> memory makes reads microsecond-fast.</p></div>
+      <div class="step"><h4>Find where the plan breaks</h4><p>A celebrity with 100M followers would trigger 100M writes per post. <span class="why">Why:</span> spotting this is the crux of the question.</p></div>
+      <div class="step"><h4>Patch it with a hybrid</h4><p>For huge accounts, don't push &mdash; pull their recent posts at read time and merge. <span class="why">Why:</span> avoids the write storm while keeping normal users fast.</p></div>
+    </div>
+
+    <h2 id="reqs">1 &middot; Requirements</h2>
+    <p><strong>Functional:</strong> a user can post a tweet, follow/unfollow others, and load a home timeline (recent posts from people they follow), with new posts appearing within a second or two. <strong>Non-functional:</strong> read-heavy, highly available, low read latency (the home timeline must feel instant), and eventual consistency is acceptable (a post showing up a second late is fine).</p>
+
+    <h2 id="capacity">2 &middot; Capacity estimation</h2>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Quantity</th><th>Estimate</th><th>How</th></tr></thead>
+      <tbody>
+        <tr><td>Daily active users</td><td>~300M</td><td>given</td></tr>
+        <tr><td>Writes (posts)</td><td>~7K/s avg, ~35K/s peak</td><td>300M &times; ~2 posts/day &divide; 86,400, &times;5 peak</td></tr>
+        <tr><td>Reads (timeline loads)</td><td>~350K/s avg, ~1M/s peak</td><td>~10 refreshes/user/day; read:write &asymp; 50:1</td></tr>
+        <tr><td>Text storage</td><td>~180 GB/day</td><td>600M posts &times; ~300 bytes</td></tr>
+        <tr><td>Media</td><td>petabytes/yr</td><td>stored in blob storage + CDN, not the DB</td></tr>
+      </tbody>
+    </table></div>
+    <p>The dominant fact is the <strong>50:1 read:write ratio</strong>. That single number drives the whole design: we pay extra work on the (rare) write to make the (constant) read cheap &mdash; this is the precompute-the-timeline idea.</p>
+
+    <h2 id="api">3 &middot; API</h2>
+    <ul class="clean">
+      <li><code>POST /v1/tweets</code> &rarr; <code>{ text, mediaIds }</code> returns <code>tweetId</code> (idempotency key supported).</li>
+      <li><code>GET /v1/feed?limit=50&amp;cursor=&lt;opaque&gt;</code> &rarr; a page of hydrated posts + next cursor (cursor pagination, never offset).</li>
+      <li><code>POST /v1/follows</code> / <code>DELETE /v1/follows/{userId}</code>.</li>
+    </ul>
+
+    <h2 id="data">4 &middot; Data model</h2>
+    <ul class="clean">
+      <li><strong>Tweets</strong> (wide-column store, e.g. Cassandra): partition by <code>tweetId</code> (Snowflake ID, time-sortable). Columns: authorId, text, mediaIds, createdAt.</li>
+      <li><strong>Social graph</strong>: <code>follows(followerId, followeeId)</code> &mdash; sharded; queried as &ldquo;who follows X&rdquo; (for fan-out) and &ldquo;who does X follow&rdquo;.</li>
+      <li><strong>Timeline cache</strong> (Redis): per user, a capped list of recent <code>tweetId</code>s &mdash; e.g. <code>timeline:{userId} =&gt; [id, id, &hellip;]</code> (latest ~800). This is the precomputed home feed.</li>
+    </ul>
+
+    <h2 id="write">5 &middot; Architecture &mdash; the write path (fan-out)</h2>
+    <figure class="diagram">
+      <svg viewBox="0 0 760 210" role="img" aria-label="Write path: post service writes to tweet store and fans out to follower timeline caches">
+        <defs><marker id="arNFa" markerWidth="9" markerHeight="9" refX="7" refY="4.5" orient="auto"><path d="M0,0 L9,4.5 L0,9 z" fill="var(--accent)"/></marker></defs>
+        <rect class="svg-box" x="12" y="40" width="84" height="56" rx="9"/><text class="svg-txt" x="54" y="73" text-anchor="middle">Client</text>
+        <rect class="svg-box" x="120" y="40" width="104" height="56" rx="9"/><text class="svg-txt" x="172" y="66" text-anchor="middle">API</text><text class="svg-sub" x="172" y="83" text-anchor="middle">gateway / LB</text>
+        <rect class="svg-accent" x="248" y="40" width="118" height="56" rx="9"/><text class="svg-txt" x="307" y="66" text-anchor="middle">Post</text><text class="svg-sub" x="307" y="83" text-anchor="middle">service</text>
+        <rect class="svg-accent" x="398" y="40" width="128" height="56" rx="9"/><text class="svg-txt" x="462" y="66" text-anchor="middle">Fan-out</text><text class="svg-sub" x="462" y="83" text-anchor="middle">workers (async)</text>
+        <rect class="svg-good" x="558" y="40" width="180" height="56" rx="9"/><text class="svg-txt" x="648" y="66" text-anchor="middle">Timeline cache</text><text class="svg-sub" x="648" y="83" text-anchor="middle">Redis &middot; per-user lists</text>
+        <rect class="svg-box" x="248" y="146" width="118" height="50" rx="9"/><text class="svg-txt" x="307" y="168" text-anchor="middle">Tweet store</text><text class="svg-sub" x="307" y="184" text-anchor="middle">Cassandra</text>
+        <rect class="svg-box" x="398" y="146" width="128" height="50" rx="9"/><text class="svg-txt" x="462" y="168" text-anchor="middle">Graph service</text><text class="svg-sub" x="462" y="184" text-anchor="middle">followers</text>
+        <g class="svg-line-acc">
+          <line x1="96" y1="68" x2="118" y2="68" marker-end="url(#arNFa)"/>
+          <line x1="224" y1="68" x2="246" y2="68" marker-end="url(#arNFa)"/>
+          <line x1="366" y1="68" x2="396" y2="68" marker-end="url(#arNFa)"/>
+          <line x1="526" y1="68" x2="556" y2="68" marker-end="url(#arNFa)"/>
+          <line x1="307" y1="96" x2="307" y2="144" marker-end="url(#arNFa)"/>
+          <line x1="462" y1="96" x2="462" y2="144" marker-end="url(#arNFa)"/>
+        </g>
+        <text class="svg-sub" x="318" y="124" text-anchor="start">persist</text>
+        <text class="svg-sub" x="473" y="124" text-anchor="start">read followers</text>
+      </svg>
+      <figcaption>Write path: the Post service durably stores the tweet, then hands off to async Fan-out workers, which read the author&#8217;s followers and push the new tweetId into each follower&#8217;s Redis timeline list.</figcaption>
+    </figure>
+    <p>On a post, we (1) persist to the Tweet store synchronously, then (2) enqueue a fan-out job. Async workers look up the author&#8217;s followers and prepend the <code>tweetId</code> to each follower&#8217;s timeline list in Redis. Now a home-timeline read is just &ldquo;read one Redis list&rdquo; &mdash; O(1)-ish and microseconds fast.</p>
+
+    <h2 id="read">6 &middot; Architecture &mdash; the read path</h2>
+    <figure class="diagram">
+      <svg viewBox="0 0 760 210" role="img" aria-label="Read path: timeline service reads cached IDs then hydrates from tweet store and CDN">
+        <defs><marker id="arNFb" markerWidth="9" markerHeight="9" refX="7" refY="4.5" orient="auto"><path d="M0,0 L9,4.5 L0,9 z" fill="var(--accent)"/></marker></defs>
+        <rect class="svg-box" x="12" y="40" width="84" height="56" rx="9"/><text class="svg-txt" x="54" y="73" text-anchor="middle">Client</text>
+        <rect class="svg-box" x="120" y="40" width="104" height="56" rx="9"/><text class="svg-txt" x="172" y="66" text-anchor="middle">API</text><text class="svg-sub" x="172" y="83" text-anchor="middle">gateway / LB</text>
+        <rect class="svg-accent" x="248" y="40" width="140" height="56" rx="9"/><text class="svg-txt" x="318" y="66" text-anchor="middle">Timeline</text><text class="svg-sub" x="318" y="83" text-anchor="middle">service</text>
+        <rect class="svg-good" x="420" y="40" width="170" height="56" rx="9"/><text class="svg-txt" x="505" y="66" text-anchor="middle">Timeline cache</text><text class="svg-sub" x="505" y="83" text-anchor="middle">get post IDs</text>
+        <rect class="svg-box" x="248" y="146" width="140" height="50" rx="9"/><text class="svg-txt" x="318" y="168" text-anchor="middle">Tweet store</text><text class="svg-sub" x="318" y="184" text-anchor="middle">hydrate posts</text>
+        <rect class="svg-box" x="420" y="146" width="170" height="50" rx="9"/><text class="svg-txt" x="505" y="168" text-anchor="middle">Media / CDN</text><text class="svg-sub" x="505" y="184" text-anchor="middle">images, video</text>
+        <g class="svg-line-acc">
+          <line x1="96" y1="68" x2="118" y2="68" marker-end="url(#arNFb)"/>
+          <line x1="224" y1="68" x2="246" y2="68" marker-end="url(#arNFb)"/>
+          <line x1="388" y1="68" x2="418" y2="68" marker-end="url(#arNFb)"/>
+          <line x1="318" y1="96" x2="318" y2="144" marker-end="url(#arNFb)"/>
+          <line x1="430" y1="96" x2="490" y2="144" marker-end="url(#arNFb)"/>
+        </g>
+      </svg>
+      <figcaption>Read path: the Timeline service fetches the precomputed list of tweetIds from Redis, then hydrates them (text from the Tweet store, media from the CDN) in a batch and returns a page. The expensive work already happened at write time.</figcaption>
+    </figure>
+
+        <div class="example" data-ex-added><span class="label">&#128205; Real example &mdash; read replica vs shard</span>
+      <p>Two different database scaling moves get confused constantly. They solve different problems:</p>
+      <pre class="code"><span class="c">// READ REPLICAS &mdash; one primary takes writes, copies stream to read-only replicas</span>
+write  &rarr;  [ PRIMARY ]  &mdash;replicates&rarr;  [ replica 1 ]  [ replica 2 ]  [ replica 3 ]
+reads  &rarr;                                  &uarr; SELECT spread across replicas
+   helps when: 95% of traffic is reads (like a feed). Hurts nothing but write capacity.
+   gotcha: replication lag &mdash; a replica may be 50ms behind, so a user can post and not see it yet.
+
+<span class="c">// SHARDING &mdash; split the data itself across independent primaries</span>
+user_id % 4 == 0  &rarr;  [ shard 0 ]   (its own primary + replicas)
+user_id % 4 == 1  &rarr;  [ shard 1 ]
+user_id % 4 == 2  &rarr;  [ shard 2 ]
+user_id % 4 == 3  &rarr;  [ shard 3 ]
+   helps when: writes or total data are too big for one machine.
+   gotcha: cross-shard queries (e.g. "feed from 100 friends on 4 shards") get hard &mdash; you fan out and merge.</pre>
+      <p><strong>What this teaches:</strong> reach for <strong>read replicas</strong> first &mdash; they&#8217;re cheap and a feed is read-heavy, but they don&#8217;t add write capacity and they lag. Reach for <strong>sharding</strong> only when one primary can&#8217;t hold the writes or the data; it scales writes but makes anything spanning shards (joins, &ldquo;merge my friends&#8217; posts&rdquo;) your problem to solve in application code. Most large systems use both: shard the data, then replicate each shard.</p>
+    </div>
+
+    <h2 id="hard">7 &middot; The hard part &mdash; fan-out at scale</h2>
+    <p>Pure push (fan-out on write) breaks for celebrities: pushing one post from an account with 100M followers means 100M Redis writes &mdash; a single tweet causes a write storm. The standard answer is a <strong>hybrid</strong>.</p>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Strategy</th><th>How</th><th>Cost</th></tr></thead>
+      <tbody>
+        <tr><td>Fan-out on write (push)</td><td>Precompute timelines; reads are trivial.</td><td>Write amplification; brutal for celebrities.</td></tr>
+        <tr><td>Fan-out on read (pull)</td><td>At read time, merge recent posts from everyone you follow.</td><td>Cheap writes; expensive, slow reads.</td></tr>
+        <tr><td><strong>Hybrid (the answer)</strong></td><td>Push for normal accounts; for a handful of celebrity accounts, <em>don&#8217;t</em> push &mdash; pull their recent posts at read time and merge into the cached timeline.</td><td>Balances both; a little merge complexity.</td></tr>
+      </tbody>
+    </table></div>
+    <div class="say"><span class="label">Say it like a director</span><p>&ldquo;I&#8217;d precompute timelines with fan-out on write because reads dominate 50-to-1, but I&#8217;d special-case high-follower accounts to pull-on-read so one celebrity post doesn&#8217;t trigger a hundred-million-write storm. That hybrid is the crux of the design.&rdquo;</p></div>
+
+    <h2 id="scale">8 &middot; Scaling &amp; bottlenecks</h2>
+    <ul class="clean">
+      <li><strong>Timeline cache</strong>: shard Redis by userId (consistent hashing); cap each list (~800 ids) so memory is bounded; replicate for availability.</li>
+      <li><strong>Hot keys</strong>: a viral thread can hammer one tweet&#8217;s row &mdash; add a read-through cache layer and possibly replicate hot tweets.</li>
+      <li><strong>Tweet store</strong>: Cassandra scales writes horizontally; partition by tweetId; reads are batched key lookups during hydration.</li>
+      <li><strong>Stateless services</strong> (Post, Timeline, Fan-out) scale out behind the load balancer; fan-out runs off a queue to absorb spikes.</li>
+    </ul>
+
+    <h2 id="fail">9 &middot; Failure &amp; reliability</h2>
+    <ul class="clean">
+      <li><strong>Cache loss</strong>: a timeline list is a cache, not source of truth &mdash; on miss we rebuild it by pulling recent posts from followees, so Redis going down degrades latency, not correctness.</li>
+      <li><strong>Fan-out lag</strong>: the queue may back up under spikes; posts appear a little late &mdash; acceptable per our eventual-consistency requirement, and a dead-letter queue catches failures.</li>
+      <li><strong>Targets</strong>: set an SLO on timeline read latency (e.g. p99 &lt; 200ms) and an error budget; the Tweet store is replicated across AZs.</li>
+    </ul>
+
+    <h2 id="tradeoffs">10 &middot; Trade-offs summary</h2>
+    <ul class="clean">
+      <li>We trade <strong>extra write work</strong> (fan-out) for <strong>cheap reads</strong> &mdash; correct because reads dominate.</li>
+      <li>We accept <strong>eventual consistency</strong> (slightly delayed posts) to get availability and low latency.</li>
+      <li>We add <strong>hybrid complexity</strong> for celebrities to avoid catastrophic write amplification.</li>
+    </ul>
+
+    
+        <h2 id="subsystems">Key sub-systems</h2>
+    <ul class="clean">
+      <li><strong>Post service</strong> &mdash; persists tweets, triggers fan-out.</li>
+      <li><strong>Fan-out workers</strong> &mdash; push tweetIds into follower timelines.</li>
+      <li><strong>Timeline cache</strong> &mdash; per-user Redis lists.</li>
+      <li><strong>Tweet store</strong> &mdash; Cassandra, source of truth.</li>
+      <li><strong>Graph service</strong> &mdash; follower lookups.</li>
+    </ul>
+    <h2 id="bottlenecks">Bottlenecks &amp; what to optimize next</h2>
+    <ul class="clean">
+      <li>Celebrity fan-out is the bottleneck &mdash; switch high-follower accounts to pull-on-read.</li>
+      <li>Timeline-cache memory grows &mdash; cap list length and evict inactive users.</li>
+    </ul>
+    <h2 id="levels">Senior &middot; Staff &middot; Principal</h2>
+    <div class="ladder">
+      <div class="lv s"><span class="tier">Senior</span><p>Builds fan-out-on-write with a Redis timeline cache.</p></div>
+      <div class="lv t"><span class="tier">Staff</span><p>Handles the celebrity hybrid, cache rebuild on miss, and ranking signals.</p></div>
+      <div class="lv p"><span class="tier">Principal</span><p>Raises ML-ranked feeds, multi-region timelines, abuse/spam, and eventual-consistency guarantees at scale.</p></div>
+    </div>
+    <h2 id="faq">Common follow-up questions</h2>
+    <details class="qa"><summary>How do you handle a user with 100M followers?</summary><div class="body"><p>Don't push their posts; pull-on-read &mdash; fetch their recent tweets at read time and merge into the (mostly precomputed) timeline.</p></div></details>
+    <details class="qa"><summary>What if the timeline cache is lost?</summary><div class="body"><p>It's only a cache &mdash; rebuild a user's timeline by pulling recent posts from who they follow; correctness is unaffected, latency dips briefly.</p></div></details>
+    <details class="qa"><summary>Chronological vs ranked feed?</summary><div class="body"><p>Chronological is simple (just the list); ranked needs a scoring service over candidate posts &mdash; more infra and a feedback loop.</p></div></details>
+
+    <div class="recap"><span class="label">&#129504; Remember it</span>
+      <p>Reads dominate 50:1, so <span class="hook">precompute timelines on write</span> &mdash; except for celebrities.</p>
+      <ul>
+        <li>Fan-out on write makes reads O(1); celebrities use pull-on-read.</li>
+        <li>Timeline cache (Redis) is rebuildable &mdash; loss hurts latency, not data.</li>
+        <li>Accept eventual consistency for availability + speed.</li>
+      </ul>
+    </div>
+
+    <div class="pagenav">
+      <a class="card" href="system-design-cases.html"><span class="tag">&larr; Back</span><h3>System Design II</h3></a>
+      <a class="card" href="sd-chat.html"><span class="tag">Next deep-dive &rarr;</span><h3>Chat System</h3></a>
+    </div>
+  </main>
+</div>
+</div>
+
+<script src="assets/js/main.js"></script>
+</body>
+</html>

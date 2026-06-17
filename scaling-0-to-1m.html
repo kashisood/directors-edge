@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="warm">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Scaling from 0 to a Million Users — Director's Edge</title>
+<meta name="description" content="How real systems grow &mdash; one bottleneck at a time &mdash; from a single server to a cached, load-balanced, sharded, multi-region architecture. The evolution every engineering leader should be able to narrate." />
+<link rel="preconnect" href="https://fonts.googleapis.com" /><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="assets/css/styles.css" />
+</head>
+<body data-theme="warm">
+<section class="hero"><span class="eyebrow">Insight &middot; Scalability</span><h1>Scaling from 0 to a Million Users</h1><p class="lead">How real systems grow &mdash; one bottleneck at a time &mdash; from a single server to a cached, load-balanced, sharded, multi-region architecture. The evolution every engineering leader should be able to narrate.</p></section>
+<div class="wrap section"><div class="page-layout">
+  <aside class="toc"><strong>On this page</strong>
+    <a href="#think">How to think (step by step)</a>
+    <a href="#arch">The shape it grows into</a>
+    <a href="#stages">The journey at a glance</a>
+    <a href="#principles">The principles</a>
+  </aside>
+  <main>
+        <div class="tools"><span class="tlabel">&#128295; Tools you'd reach for</span><span class="tool">AWS EC2</span><span class="tool">Elastic Load Balancing</span><span class="tool">Amazon RDS</span><span class="tool">Redis</span><span class="tool">Apache Kafka</span><span class="tool">CloudFront</span><span class="tool">Kubernetes</span><span class="tool">Terraform</span><span class="tool">Datadog</span></div>
+
+    <h2 id="think">How to think about it &mdash; step by step</h2>
+    <div class="steps">
+      <div class="step"><h4>Start simple, on purpose</h4><p>Stage 0 is one server running both the app and the database. <span class="why">Why:</span> at a few thousand users this is fine &mdash; don't build for scale you don't have.</p></div>
+      <div class="step"><h4>Split the tiers</h4><p>First growth pain: separate the web/app tier from the database onto their own machines. <span class="why">Why:</span> they compete for CPU/RAM; splitting lets each scale on its own.</p></div>
+      <div class="step"><h4>Go horizontal behind a load balancer</h4><p>Make the app tier stateless and run several copies behind a load balancer. <span class="why">Why:</span> you can now add servers to handle more traffic, and one dying doesn't take you down.</p></div>
+      <div class="step"><h4>Offload reads: cache + CDN + replicas</h4><p>Add Redis for hot data, a CDN for static assets, and read replicas for the database. <span class="why">Why:</span> reads usually dominate; serving them from cache/replicas spares the primary.</p></div>
+      <div class="step"><h4>Make slow work asynchronous</h4><p>Push heavy tasks (emails, image processing, analytics) onto a queue handled by workers. <span class="why">Why:</span> users get fast responses; spikes are absorbed by the queue.</p></div>
+      <div class="step"><h4>Scale writes: shard / partition</h4><p>When a single primary can't keep up with writes, shard the data across databases. <span class="why">Why:</span> this is the hard, last-resort step &mdash; do it only when caching and replicas aren't enough.</p></div>
+      <div class="step"><h4>Split the monolith where it hurts</h4><p>As the org grows, peel off the few services that need independent scaling or ownership. <span class="why">Why:</span> team and scaling boundaries &mdash; not fashion &mdash; pull services out.</p></div>
+      <div class="step"><h4>Go multi-region last</h4><p>For global latency and disaster recovery, run in multiple regions. <span class="why">Why:</span> it's powerful but adds real consistency and cost complexity &mdash; earn your way to it.</p></div>
+    </div>
+    <h2 id="arch">The shape it grows into</h2>
+    <figure class="diagram">
+<svg viewBox="0 0 880 250" role="img" aria-label="Scaled architecture"><defs><marker id="m" markerWidth="9" markerHeight="9" refX="7" refY="4.5" orient="auto"><path d="M0,0 L9,4.5 L0,9 z" fill="var(--accent)"/></marker></defs><rect class="svg-box" x="8" y="100" width="80" height="46" rx="9"/><text class="svg-txt" x="48" y="128" text-anchor="middle">Users</text><rect class="svg-good" x="108" y="100" width="90" height="46" rx="9"/><text class="svg-txt" x="153" y="121" text-anchor="middle">CDN</text><text class="svg-sub" x="153" y="136" text-anchor="middle">static/edge</text><rect class="svg-accent" x="218" y="100" width="100" height="46" rx="9"/><text class="svg-txt" x="268" y="121" text-anchor="middle">Load bal.</text><text class="svg-sub" x="268" y="136" text-anchor="middle">+ autoscale</text><rect class="svg-accent" x="338" y="60" width="120" height="40" rx="9"/><text class="svg-txt" x="398" y="84" text-anchor="middle">App server</text><rect class="svg-accent" x="338" y="108" width="120" height="40" rx="9"/><text class="svg-txt" x="398" y="132" text-anchor="middle">App server</text><rect class="svg-accent" x="338" y="156" width="120" height="36" rx="9" stroke-dasharray="5 4"/><text class="svg-sub" x="398" y="178" text-anchor="middle">&hellip; stateless, +N</text><rect class="svg-good" x="490" y="40" width="120" height="42" rx="9"/><text class="svg-txt" x="550" y="62" text-anchor="middle">Cache</text><text class="svg-sub" x="550" y="77" text-anchor="middle">Redis</text><rect class="svg-box" x="490" y="96" width="120" height="42" rx="9"/><text class="svg-txt" x="550" y="118" text-anchor="middle">DB primary</text><text class="svg-sub" x="550" y="133" text-anchor="middle">writes</text><rect class="svg-box" x="490" y="150" width="120" height="42" rx="9"/><text class="svg-txt" x="550" y="172" text-anchor="middle">Read replicas</text><text class="svg-sub" x="550" y="187" text-anchor="middle">+ shards</text><rect class="svg-accent2" x="640" y="40" width="110" height="42" rx="9"/><text class="svg-txt" x="695" y="62" text-anchor="middle">Queue</text><text class="svg-sub" x="695" y="77" text-anchor="middle">async</text><rect class="svg-accent2" x="640" y="96" width="110" height="42" rx="9"/><text class="svg-txt" x="695" y="118" text-anchor="middle">Workers</text><rect class="svg-box" x="640" y="150" width="110" height="42" rx="9"/><text class="svg-txt" x="695" y="172" text-anchor="middle">Object store</text><rect class="svg-box" x="770" y="96" width="100" height="42" rx="9"/><text class="svg-txt" x="820" y="118" text-anchor="middle">Observability</text><line class="svg-line-acc" x1="88" y1="123" x2="106" y2="123" marker-end="url(#m)"/><line class="svg-line-acc" x1="198" y1="123" x2="216" y2="123" marker-end="url(#m)"/><line class="svg-line-acc" x1="318" y1="116" x2="336" y2="82" marker-end="url(#m)"/><line class="svg-line-acc" x1="318" y1="123" x2="336" y2="128" marker-end="url(#m)"/><line class="svg-line-acc" x1="458" y1="80" x2="488" y2="62" marker-end="url(#m)"/><line class="svg-line-acc" x1="458" y1="116" x2="488" y2="116" marker-end="url(#m)"/><line class="svg-line-acc" x1="458" y1="130" x2="488" y2="168" marker-end="url(#m)"/><line class="svg-line-acc" x1="610" y1="116" x2="638" y2="116" marker-end="url(#m)"/></svg>
+      <figcaption>By a million users you typically have: a CDN for static content, a load balancer with an autoscaling group of stateless app servers, Redis caching, a database primary with read replicas (and eventually shards), a queue + workers for async work, object storage for files, and observability across all of it.</figcaption>
+    </figure>
+    <h2 id="stages">The journey at a glance</h2>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Scale</th><th>First bottleneck</th><th>What you add</th></tr></thead>
+      <tbody>
+        <tr><td>~1K users</td><td>Nothing &mdash; one box is fine</td><td>Single server (app + DB)</td></tr>
+        <tr><td>~10K</td><td>App and DB fight for resources</td><td>Split app tier from DB</td></tr>
+        <tr><td>~100K</td><td>One app server saturates</td><td>Load balancer + stateless app fleet</td></tr>
+        <tr><td>~250K</td><td>DB reads overwhelm the primary</td><td>Cache (Redis) + CDN + read replicas</td></tr>
+        <tr><td>~500K</td><td>Slow tasks block requests; spikes hurt</td><td>Queues + async workers</td></tr>
+        <tr><td>~1M</td><td>Write volume exceeds one primary</td><td>Shard/partition the DB; peel off services</td></tr>
+        <tr><td>Global</td><td>Latency &amp; resilience</td><td>Multi-region + DR (RTO/RPO)</td></tr>
+      </tbody></table></div>
+    <h2 id="principles">The principles underneath</h2>
+    <ul class="clean">
+      <li><strong>Measure before you scale</strong> &mdash; find the actual bottleneck; don't guess. Most early problems are a missing index, not a capacity wall.</li>
+      <li><strong>Keep compute stateless</strong> &mdash; push state into databases, caches, and object stores so scaling = adding nodes.</li>
+      <li><strong>Cache the hot path</strong> &mdash; the cheapest performance win, at every layer (browser, CDN, app, DB).</li>
+      <li><strong>Make it async</strong> &mdash; anything the user doesn't need immediately goes on a queue.</li>
+      <li><strong>Escalate complexity deliberately</strong> &mdash; index &rarr; cache &rarr; replicas &rarr; vertical &rarr; shard. Don't shard to avoid adding an index.</li>
+      <li><strong>Design for failure</strong> &mdash; health checks, retries, redundancy; assume any node can die.</li>
+    </ul>
+    <div class="story"><span class="label">&#128214; The story</span>
+      <p>Nobody builds the million-user architecture on day one &mdash; they grow into it, one bottleneck at a time. The skill isn't knowing the final diagram; it's knowing <em>which problem to solve next</em>.</p>
+      <p>The pattern repeats: measure, find the thing that's saturating, add the cheapest fix that removes it, repeat. Stateless compute, caching, and async work carry you most of the way; sharding and multi-region are the expensive last miles.</p>
+    </div>
+    <div class="recap"><span class="label">&#129504; Remember it</span>
+      <p>Scaling is <span class="hook">one bottleneck at a time: split &rarr; load-balance &rarr; cache &rarr; async &rarr; shard &rarr; multi-region</span>.</p>
+      <ul>
+        <li>Keep app servers stateless so growth = add nodes.</li>
+        <li>Offload reads (cache/CDN/replicas) before touching writes (sharding).</li>
+        <li>Measure first; escalate complexity only when the cheaper fix runs out.</li>
+      </ul>
+    </div>
+
+    <div class="pagenav">
+      <a class="card" href="system-design.html"><span class="tag">&larr; Related</span><h3>System Design</h3></a>
+      <a class="card" href="cloud-native.html"><span class="tag">Next insight &rarr;</span><h3>Cloud &amp; AI-Native</h3></a>
+    </div>
+  </main>
+</div></div>
+<script src="assets/js/main.js"></script>
+</body>
+</html>

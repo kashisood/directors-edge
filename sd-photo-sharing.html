@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="warm">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Design Photo Sharing (Instagram) — Director's Edge</title>
+<meta name="description" content="System design deep-dive: Design Photo Sharing (Instagram)." />
+<link rel="preconnect" href="https://fonts.googleapis.com" /><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="assets/css/styles.css" />
+</head>
+<body data-theme="warm">
+<section class="hero"><span class="eyebrow">System design deep-dive</span><h1>Design Photo Sharing (Instagram)</h1><p class="lead">A deep-dive into an image-centric feed: object storage + CDN for media, an async processing pipeline, and the news-feed pattern for timelines.</p></section>
+<div class="wrap section"><div class="page-layout">
+  <aside class="toc"><strong>On this page</strong>
+    <a href="#think">How to think (step by step)</a>
+    <a href="#reqs">1 · Requirements</a>
+    <a href="#capacity">2 · Capacity</a>
+    <a href="#arch">3 · Architecture</a>
+    <a href="#hard">4 · The hard parts</a>
+    <a href="#trade">5 · Trade-offs</a>
+    <a href="#subsystems">Key sub-systems</a>
+    <a href="#bottlenecks">Bottlenecks</a>
+    <a href="#levels">Senior / Staff / Principal</a>
+    <a href="#faq">Follow-up Q&amp;A</a>
+  </aside>
+  <main>
+    <div class="callout"><span class="label">&#11088; At Google</span><p>Drive it top-down: requirements &rarr; scale &rarr; design &rarr; bottleneck &rarr; trade-offs. Back to <a href="system-design-cases.html">System Design II</a>.</p></div>
+    <div class="story"><span class="label">&#128214; The story</span>
+      <p>Photo sharing is a feed plus a media problem. The feed reuses the fan-out ideas from the News Feed; the new challenge is storing and serving images globally, fast, while absorbing upload bursts.</p>
+      <p>So images go to object storage and a CDN, an async pipeline makes the many sizes you need, and metadata lives in a sharded DB &mdash; keeping the read path cheap.</p>
+    </div>
+            <div class="tools"><span class="tlabel">&#128295; Typical tools</span><span class="tool">Amazon S3</span><span class="tool">CloudFront</span><span class="tool">Cassandra</span><span class="tool">Apache Kafka</span></div>
+
+    <h2 id="think">How to think about it &mdash; step by step</h2>
+    <div class="steps">
+      <div class="step"><h4>Split it into two problems</h4><p>A feed (like Twitter) plus media handling. <span class="why">Why:</span> reuse the feed solution and focus energy on images.</p></div>
+      <div class="step"><h4>Get images out of the database</h4><p>Store photos in object storage and serve via CDN; keep only metadata in the DB. <span class="why">Why:</span> media is huge and read globally; the DB shouldn't touch it.</p></div>
+      <div class="step"><h4>Process uploads asynchronously</h4><p>On upload, accept it, then generate thumbnails/sizes in the background. <span class="why">Why:</span> the user shouldn't wait, and you need many sizes for different screens.</p></div>
+      <div class="step"><h4>Reuse the feed pattern</h4><p>Fan-out timelines with the celebrity hybrid. <span class="why">Why:</span> don't reinvent it &mdash; connect to what you already know.</p></div>
+      <div class="step"><h4>Name the trade-off</h4><p>Pre-making sizes costs storage but makes serving instant. <span class="why">Why:</span> worth it for popular content.</p></div>
+    </div>
+
+    <h2 id="reqs">1 &middot; Requirements</h2>
+<p><strong>Functional:</strong> upload photos, follow users, view a home feed, like/comment. <strong>Non-functional:</strong> read-heavy image serving, low latency globally, bursty uploads.</p>    <h2 id="capacity">2 &middot; Capacity</h2>
+<p>Reads (views) vastly outnumber writes (posts). Media dominates storage &mdash; petabytes &mdash; so it lives in object storage + CDN, never the DB.</p>    <h2 id="arch">3 &middot; Architecture</h2>
+    <figure class="diagram">
+<svg viewBox="0 0 780 190" role="img" aria-label="Photo sharing architecture"><defs><marker id="m" markerWidth="9" markerHeight="9" refX="7" refY="4.5" orient="auto"><path d="M0,0 L9,4.5 L0,9 z" fill="var(--accent)"/></marker></defs><rect class="svg-box" x="8" y="72" width="84" height="50" rx="9"/><text class="svg-txt" x="50" y="95" text-anchor="middle">Client</text><rect class="svg-accent" x="112" y="72" width="120" height="50" rx="9"/><text class="svg-txt" x="172" y="95" text-anchor="middle">App tier</text><rect class="svg-box" x="256" y="12" width="150" height="44" rx="9"/><text class="svg-txt" x="331" y="32" text-anchor="middle">Object store</text><text class="svg-sub" x="331" y="49" text-anchor="middle">originals</text><rect class="svg-box" x="256" y="72" width="150" height="44" rx="9"/><text class="svg-txt" x="331" y="92" text-anchor="middle">Metadata DB</text><text class="svg-sub" x="331" y="109" text-anchor="middle">sharded</text><rect class="svg-good" x="256" y="132" width="150" height="44" rx="9"/><text class="svg-txt" x="331" y="152" text-anchor="middle">Timeline cache</text><text class="svg-sub" x="331" y="169" text-anchor="middle">feed</text><rect class="svg-accent2" x="440" y="12" width="150" height="44" rx="9"/><text class="svg-txt" x="515" y="32" text-anchor="middle">Image pipeline</text><text class="svg-sub" x="515" y="49" text-anchor="middle">thumbnails (async)</text><rect class="svg-good" x="440" y="132" width="150" height="44" rx="9"/><text class="svg-txt" x="515" y="152" text-anchor="middle">CDN</text><text class="svg-sub" x="515" y="169" text-anchor="middle">serve images</text><line class="svg-line-acc" x1="92" y1="97" x2="110" y2="97" marker-end="url(#m)"/><line class="svg-line-acc" x1="232" y1="86" x2="254" y2="34" marker-end="url(#m)"/><line class="svg-line-acc" x1="232" y1="97" x2="254" y2="94" marker-end="url(#m)"/><line class="svg-line-acc" x1="232" y1="108" x2="254" y2="154" marker-end="url(#m)"/><line class="svg-line-acc" x1="406" y1="34" x2="438" y2="34" marker-end="url(#m)"/></svg>
+      <figcaption>Uploads go to object storage; an async pipeline generates thumbnails/resolutions; metadata is sharded in a DB; the home feed uses the fan-out timeline-cache pattern; the CDN serves all images.</figcaption>
+    </figure>
+    <h2 id="hard">4 &middot; The hard parts</h2>
+    <ul class="clean">
+      <li><strong>Media delivery</strong>: pre-generate sizes and serve via CDN for low latency; originals stay in cheap storage.</li>
+      <li><strong>Feed</strong>: same fan-out-on-write + celebrity hybrid as the News Feed deep-dive.</li>
+      <li><strong>Upload bursts</strong>: accept the upload, process (thumbnails) asynchronously, mark ready when done.</li>
+    </ul>
+    <h2 id="trade">5 &middot; Trade-offs</h2>
+    <ul class="clean">
+      <li>Pre-generate sizes (storage cost, fast serve) vs on-the-fly resize (compute, latency).</li>
+      <li>Fan-out write vs read &mdash; hybrid for high-follower accounts.</li>
+    </ul>
+        <h2 id="subsystems">Key sub-systems</h2>
+    <ul class="clean">
+      <li><strong>Upload service</strong> &mdash; accepts originals to object storage.</li>
+      <li><strong>Processing pipeline</strong> &mdash; async thumbnails/resolutions.</li>
+      <li><strong>Metadata DB</strong> &mdash; sharded posts/likes/comments.</li>
+      <li><strong>Feed</strong> &mdash; fan-out timeline like the News Feed.</li>
+      <li><strong>CDN</strong> &mdash; serves all images.</li>
+    </ul>
+    <h2 id="bottlenecks">Bottlenecks &amp; what to optimize next</h2>
+    <ul class="clean">
+      <li>Image egress dominates &mdash; maximize CDN cache-hit ratio and pre-size images.</li>
+      <li>Upload spikes &mdash; accept fast, process thumbnails asynchronously.</li>
+    </ul>
+    <h2 id="levels">Senior &middot; Staff &middot; Principal</h2>
+    <div class="ladder">
+      <div class="lv s"><span class="tier">Senior</span><p>Stores media in object storage + CDN and reuses the feed pattern.</p></div>
+      <div class="lv t"><span class="tier">Staff</span><p>Handles the async image pipeline, sharding, and the celebrity feed hybrid.</p></div>
+      <div class="lv p"><span class="tier">Principal</span><p>Raises content moderation, ML ranking/recommendations, and global media replication economics.</p></div>
+    </div>
+    <h2 id="faq">Common follow-up questions</h2>
+    <details class="qa"><summary>Where do images live?</summary><div class="body"><p>Originals in object storage; pre-generated sizes served via CDN. The DB holds only metadata.</p></div></details>
+    <details class="qa"><summary>How do you handle upload bursts?</summary><div class="body"><p>Accept the upload immediately, then generate thumbnails/sizes in a background pipeline and mark the post ready when done.</p></div></details>
+    <details class="qa"><summary>How is the feed built?</summary><div class="body"><p>Same fan-out-on-write timeline cache as Twitter, with pull-on-read for very high-follower accounts.</p></div></details>
+
+    <div class="recap"><span class="label">&#129504; Remember it</span>
+      <p>Photo sharing = <span class="hook">feed pattern + object storage/CDN for media</span>.</p>
+      <ul>
+        <li>Images in object storage + CDN; metadata sharded in DB.</li>
+        <li>Async pipeline pre-generates thumbnails/sizes.</li>
+        <li>Timeline via fan-out (hybrid for celebrities).</li>
+      </ul>
+    </div>
+
+    <div class="pagenav">
+      <a class="card" href="sd-api-gateway.html"><span class="tag">&larr; Previous</span><h3>API Gateway</h3></a>
+      <a class="card" href="sd-autocomplete.html"><span class="tag">Next &rarr;</span><h3>Autocomplete</h3></a>
+    </div>
+  </main>
+</div></div>
+<script src="assets/js/main.js"></script>
+</body>
+</html>

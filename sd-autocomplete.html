@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="warm">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Design Search Autocomplete (Typeahead) — Director's Edge</title>
+<meta name="description" content="System design deep-dive: Design Search Autocomplete (Typeahead)." />
+<link rel="preconnect" href="https://fonts.googleapis.com" /><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="assets/css/styles.css" />
+</head>
+<body data-theme="warm">
+<section class="hero"><span class="eyebrow">System design deep-dive</span><h1>Design Search Autocomplete (Typeahead)</h1><p class="lead">A deep-dive into instant suggestions: precomputed ranked prefix structures served from memory, with a tight latency budget.</p></section>
+<div class="wrap section"><div class="page-layout">
+  <aside class="toc"><strong>On this page</strong>
+    <a href="#think">How to think (step by step)</a>
+    <a href="#reqs">1 · Requirements</a>
+    <a href="#capacity">2 · Capacity</a>
+    <a href="#arch">3 · Architecture</a>
+    <a href="#hard">4 · The hard parts</a>
+    <a href="#trade">5 · Trade-offs</a>
+    <a href="#subsystems">Key sub-systems</a>
+    <a href="#bottlenecks">Bottlenecks</a>
+    <a href="#levels">Senior / Staff / Principal</a>
+    <a href="#faq">Follow-up Q&amp;A</a>
+  </aside>
+  <main>
+    <div class="callout"><span class="label">&#11088; At Google</span><p>Drive it top-down: requirements &rarr; scale &rarr; design &rarr; bottleneck &rarr; trade-offs. Back to <a href="system-design-cases.html">System Design II</a>.</p></div>
+    <div class="story"><span class="label">&#128214; The story</span>
+      <p>Autocomplete has to feel like magic &mdash; suggestions appear as you type, in tens of milliseconds. You can&#8217;t compute that per keystroke from scratch; you precompute it.</p>
+      <p>So an offline job mines query logs into a ranked prefix structure (a trie), which is served from memory behind an edge cache. Reads are instant; freshness comes from periodic rebuilds.</p>
+    </div>
+            <div class="tools"><span class="tlabel">&#128295; Typical tools</span><span class="tool">Elasticsearch</span><span class="tool">Redis</span><span class="tool">Trie / FST</span></div>
+
+    <h2 id="think">How to think about it &mdash; step by step</h2>
+    <div class="steps">
+      <div class="step"><h4>Set the brutal latency bar</h4><p>Suggestions must appear as you type &mdash; tens of milliseconds. <span class="why">Why:</span> that rules out computing anything from scratch per keystroke.</p></div>
+      <div class="step"><h4>Precompute the answers</h4><p>Offline, mine query logs into a ranked list of top completions for each prefix. <span class="why">Why:</span> at request time you just look up, you don't search.</p></div>
+      <div class="step"><h4>Serve from memory + edge</h4><p>Hold the structure (a trie) in memory behind an edge cache. <span class="why">Why:</span> memory + nearby cache is how you hit the latency budget.</p></div>
+      <div class="step"><h4>Refresh on a schedule</h4><p>Rebuild periodically so trending terms appear. <span class="why">Why:</span> full real-time freshness isn't worth the cost.</p></div>
+      <div class="step"><h4>Name the trade-off</h4><p>Personalized suggestions are more relevant but can't be shared/cached. <span class="why">Why:</span> freshness and personalization both fight latency.</p></div>
+    </div>
+
+    <h2 id="reqs">1 &middot; Requirements</h2>
+<p><strong>Functional:</strong> return the top few completions for a prefix, ranked by popularity, as the user types. <strong>Non-functional:</strong> p99 latency in the tens of ms; huge query volume; reasonable freshness.</p>    <h2 id="capacity">2 &middot; Capacity</h2>
+<p>Read-dominated; the data (popular prefixes) is small enough to hold in memory and cache at the edge.</p>    <h2 id="arch">3 &middot; Architecture</h2>
+    <figure class="diagram">
+<svg viewBox="0 0 780 180" role="img" aria-label="Typeahead architecture"><defs><marker id="m" markerWidth="9" markerHeight="9" refX="7" refY="4.5" orient="auto"><path d="M0,0 L9,4.5 L0,9 z" fill="var(--accent)"/></marker></defs><rect class="svg-box" x="8" y="66" width="84" height="50" rx="9"/><text class="svg-txt" x="50" y="89" text-anchor="middle">Client</text><text class="svg-sub" x="50" y="106" text-anchor="middle">keystrokes</text><rect class="svg-accent" x="112" y="66" width="150" height="50" rx="9"/><text class="svg-txt" x="187" y="89" text-anchor="middle">Suggest svc</text><text class="svg-sub" x="187" y="106" text-anchor="middle">in-memory trie</text><rect class="svg-good" x="286" y="18" width="150" height="44" rx="9"/><text class="svg-txt" x="361" y="38" text-anchor="middle">Edge cache</text><text class="svg-sub" x="361" y="55" text-anchor="middle">hot prefixes</text><rect class="svg-box" x="286" y="110" width="160" height="44" rx="9"/><text class="svg-txt" x="366" y="130" text-anchor="middle">Trie / FST store</text><text class="svg-sub" x="366" y="147" text-anchor="middle">top-k per prefix</text><rect class="svg-accent2" x="470" y="110" width="150" height="44" rx="9"/><text class="svg-txt" x="545" y="130" text-anchor="middle">Aggregator</text><text class="svg-sub" x="545" y="147" text-anchor="middle">from query logs (async)</text><line class="svg-line-acc" x1="92" y1="91" x2="110" y2="91" marker-end="url(#m)"/><line class="svg-line-acc" x1="262" y1="82" x2="284" y2="40" marker-end="url(#m)"/><line class="svg-line-acc" x1="262" y1="98" x2="284" y2="132" marker-end="url(#m)"/><line class="svg-line-acc" x1="446" y1="132" x2="468" y2="132" marker-end="url(#m)"/></svg>
+      <figcaption>An offline aggregator turns query logs into a ranked trie/FST (top-k completions per prefix). The suggest service holds it in memory behind an edge cache; lookups are a fast prefix walk. The structure is rebuilt/updated asynchronously.</figcaption>
+    </figure>
+    <h2 id="hard">4 &middot; The hard parts</h2>
+    <ul class="clean">
+      <li><strong>Latency budget</strong>: precompute top-k per prefix so a query is a memory lookup, not a search.</li>
+      <li><strong>Ranking</strong>: weight by frequency/recency; personalize cautiously (kills cacheability).</li>
+      <li><strong>Freshness</strong>: trending terms appear via periodic rebuilds; full real-time is expensive.</li>
+    </ul>
+    <h2 id="trade">5 &middot; Trade-offs</h2>
+    <ul class="clean">
+      <li>Freshness vs latency (precomputed cached vs real-time updates).</li>
+      <li>Personalization (relevant) vs cacheability (fast, shared).</li>
+    </ul>
+        <h2 id="subsystems">Key sub-systems</h2>
+    <ul class="clean">
+      <li><strong>Log aggregator</strong> &mdash; mines query frequencies offline.</li>
+      <li><strong>Trie builder</strong> &mdash; precomputes top-k per prefix.</li>
+      <li><strong>Suggest service</strong> &mdash; in-memory lookups.</li>
+      <li><strong>Edge cache</strong> &mdash; hot prefixes.</li>
+      <li><strong>Ranking</strong> &mdash; frequency + recency signals.</li>
+    </ul>
+    <h2 id="bottlenecks">Bottlenecks &amp; what to optimize next</h2>
+    <ul class="clean">
+      <li>The latency budget is the constraint &mdash; precompute so a query is a memory lookup, not a search.</li>
+      <li>Freshness costs &mdash; rebuild the trie periodically rather than per query.</li>
+    </ul>
+    <h2 id="levels">Senior &middot; Staff &middot; Principal</h2>
+    <div class="ladder">
+      <div class="lv s"><span class="tier">Senior</span><p>Serves a precomputed trie from memory under a tight latency budget.</p></div>
+      <div class="lv t"><span class="tier">Staff</span><p>Handles ranking, edge caching, and incremental trie updates for trends.</p></div>
+      <div class="lv p"><span class="tier">Principal</span><p>Raises personalization vs cacheability, spell-correction/fuzzy matching, and abuse (poisoning suggestions).</p></div>
+    </div>
+    <h2 id="faq">Common follow-up questions</h2>
+    <details class="qa"><summary>How is it so fast?</summary><div class="body"><p>Top completions per prefix are precomputed offline and held in memory behind an edge cache, so a request is a lookup, not a computation.</p></div></details>
+    <details class="qa"><summary>How do trending terms appear?</summary><div class="body"><p>Rebuild/merge the trie periodically from recent query logs; full real-time updating is rarely worth the cost.</p></div></details>
+    <details class="qa"><summary>How do you stop offensive/poisoned suggestions?</summary><div class="body"><p>Blocklists, frequency thresholds, and review of newly trending terms before surfacing them.</p></div></details>
+
+    <div class="recap"><span class="label">&#129504; Remember it</span>
+      <p>Autocomplete = <span class="hook">precomputed ranked trie served from memory</span>.</p>
+      <ul>
+        <li>Top-k per prefix precomputed; lookup is a memory walk.</li>
+        <li>Edge cache for hot prefixes; rebuild async for freshness.</li>
+        <li>Personalization trades away cacheability.</li>
+      </ul>
+    </div>
+
+    <div class="pagenav">
+      <a class="card" href="sd-photo-sharing.html"><span class="tag">&larr; Previous</span><h3>Photo Sharing</h3></a>
+      <a class="card" href="sd-notifications.html"><span class="tag">Next &rarr;</span><h3>Notifications</h3></a>
+    </div>
+  </main>
+</div></div>
+<script src="assets/js/main.js"></script>
+</body>
+</html>

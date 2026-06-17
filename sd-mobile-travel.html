@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="warm">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Design a Mobile Travel Booking App — Director's Edge</title>
+<meta name="description" content="System design deep-dive: Design a Mobile Travel Booking App." />
+<link rel="preconnect" href="https://fonts.googleapis.com" /><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="assets/css/styles.css" />
+</head>
+<body data-theme="warm">
+<section class="hero"><span class="eyebrow">Mobile system design deep-dive</span><h1>Design a Mobile Travel Booking App</h1><p class="lead">A mobile-flavored system design: search at scale, a bullet-proof booking flow, and the unforgiving airport UX where the boarding pass must work with no signal. (Flights, itinerary, boarding passes.)</p></section>
+<div class="wrap section"><div class="page-layout">
+  <aside class="toc"><strong>On this page</strong>
+    <a href="#think">How to think (step by step)</a>
+    <a href="#reqs">1 · Requirements</a>
+    <a href="#flows">2 · Core flows</a>
+    <a href="#arch">3 · Architecture</a>
+    <a href="#search">4 · Search</a>
+    <a href="#booking">5 · Booking</a>
+    <a href="#offline">6 · Itinerary &amp; offline</a>
+    <a href="#subsystems">Key sub-systems</a>
+    <a href="#bottlenecks">Bottlenecks</a>
+    <a href="#levels">Senior / Staff / Principal</a>
+    <a href="#faq">Follow-up Q&amp;A</a>
+  </aside>
+  <main>
+    <div class="callout"><span class="label">&#11088; At Google</span><p>Drive it top-down: requirements &rarr; scale &rarr; design &rarr; bottleneck &rarr; trade-offs. Back to <a href="system-design-cases.html">System Design II</a>.</p></div>
+    <div class="story"><span class="label">&#128214; The story</span>
+      <p>&lsquo;Design a travel booking app&rsquo; bundles search at scale, payments, complex itineraries, and the most unforgiving UX in mobile: <em>I&#8217;m at the gate and I need my boarding pass now.</em></p>
+      <p>The trick is to decompose it into flows and notice the one constraint that dominates &mdash; the boarding pass must work offline. That pushes you to an offline-first client, with the heavy lifting (search fan-out, booking) on the server.</p>
+    </div>
+        <div class="tools"><span class="tlabel">&#128295; Typical tools</span><span class="tool">GDS APIs</span><span class="tool">Redis</span><span class="tool">CloudFront</span><span class="tool">APNs / FCM</span><span class="tool">Apple/Google Wallet</span><span class="tool">Stripe (3DS)</span></div>
+
+    <h2 id="think">How to think about it &mdash; step by step</h2>
+    <div class="steps">
+      <div class="step"><h4>Clarify scope first</h4><p>Flights only, or hotels/cars too? An OTA that sells inventory, or metasearch that redirects? Logged-in trips? <span class="why">Why:</span> it changes which subsystems you build.</p></div>
+      <div class="step"><h4>Map the user journey</h4><p>Search &rarr; results &rarr; detail &rarr; book &rarr; trip (itinerary, check-in, boarding pass) &rarr; post-trip. <span class="why">Why:</span> mobile design is organized around screens/flows, not just servers.</p></div>
+      <div class="step"><h4>Find the airport-critical screen</h4><p>The boarding pass must work with no signal. <span class="why">Why:</span> this one constraint (offline-first) drives the whole client design.</p></div>
+      <div class="step"><h4>Make search feel fast</h4><p>Fan out to many fare providers server-side, cache by (origin, destination, date), and <em>stream</em> results as they arrive. <span class="why">Why:</span> flight search is genuinely slow; stream so the user sees something immediately.</p></div>
+      <div class="step"><h4>Make booking safe</h4><p>Idempotency keys so a retry never double-books; handle 3DS/SCA; support Apple/Google Pay. <span class="why">Why:</span> mobile networks drop mid-payment, so retries are normal.</p></div>
+      <div class="step"><h4>Design for offline + disruption</h4><p>Cache itinerary + boarding pass locally and in the Wallet; push gate/time changes as Live Activities. <span class="why">Why:</span> the value is highest exactly when connectivity is worst.</p></div>
+    </div>
+
+    <h2 id="reqs">1 &middot; Requirements &amp; scope</h2>
+    <p><strong>Functional:</strong> search flights, compare/filter, book &amp; pay, manage the trip (itinerary, check-in, boarding pass), and get disruption alerts. <strong>Non-functional:</strong> fast search despite slow providers, rock-solid booking, and an <strong>offline-first</strong> trip experience &mdash; the boarding pass must work in airplane mode.</p>
+
+    <h2 id="flows">2 &middot; The core flows</h2>
+    <ul class="clean">
+      <li><strong>Search</strong> &mdash; airports, dates, passengers.</li>
+      <li><strong>Results</strong> &mdash; filter (stops, airline, time), sort (cheapest/best/fastest).</li>
+      <li><strong>Detail</strong> &mdash; fare rules, baggage, seat selection.</li>
+      <li><strong>Book</strong> &mdash; passenger info, payment, confirmation.</li>
+      <li><strong>Trip</strong> &mdash; itinerary, check-in, boarding pass, notifications.</li>
+    </ul>
+
+    <h2 id="arch">3 &middot; Architecture</h2>
+    <figure class="diagram"><svg viewBox="0 0 860 240" role="img" aria-label="Mobile travel app architecture"><defs><marker id="m" markerWidth="9" markerHeight="9" refX="7" refY="4.5" orient="auto"><path d="M0,0 L9,4.5 L0,9 z" fill="var(--accent)"/></marker></defs><rect class="svg-accent" x="10" y="40" width="120" height="150" rx="14"/><text class="svg-txt" x="70" y="66" text-anchor="middle">Mobile app</text><rect class="svg-good" x="22" y="80" width="96" height="44" rx="8"/><text class="svg-sub" x="70" y="100" text-anchor="middle">offline cache</text><text class="svg-sub" x="70" y="114" text-anchor="middle">itinerary + pass</text><rect class="svg-box" x="22" y="132" width="96" height="40" rx="8"/><text class="svg-sub" x="70" y="156" text-anchor="middle">Wallet pass</text><rect class="svg-box" x="170" y="92" width="110" height="50" rx="9"/><text class="svg-txt" x="225" y="114" text-anchor="middle">API gateway</text><text class="svg-sub" x="225" y="130" text-anchor="middle">auth, sync</text><rect class="svg-accent2" x="320" y="14" width="160" height="48" rx="9"/><text class="svg-txt" x="400" y="36" text-anchor="middle">Search service</text><text class="svg-sub" x="400" y="52" text-anchor="middle">fan-out + cache</text><rect class="svg-accent2" x="320" y="74" width="160" height="48" rx="9"/><text class="svg-txt" x="400" y="96" text-anchor="middle">Booking service</text><text class="svg-sub" x="400" y="112" text-anchor="middle">idempotent + 3DS</text><rect class="svg-accent2" x="320" y="134" width="160" height="48" rx="9"/><text class="svg-txt" x="400" y="156" text-anchor="middle">Itinerary service</text><text class="svg-sub" x="400" y="172" text-anchor="middle">trips, status</text><rect class="svg-accent2" x="320" y="194" width="160" height="40" rx="9"/><text class="svg-txt" x="400" y="218" text-anchor="middle">Push notifications</text><rect class="svg-box" x="540" y="14" width="150" height="48" rx="9"/><text class="svg-txt" x="615" y="36" text-anchor="middle">GDS providers</text><text class="svg-sub" x="615" y="52" text-anchor="middle">fares (parallel)</text><rect class="svg-box" x="540" y="74" width="150" height="48" rx="9"/><text class="svg-txt" x="615" y="96" text-anchor="middle">Payment / PSP</text><rect class="svg-box" x="540" y="134" width="150" height="48" rx="9"/><text class="svg-txt" x="615" y="156" text-anchor="middle">Airline status</text><line class="svg-line-acc" x1="130" y1="116" x2="168" y2="116" marker-end="url(#m)"/><line class="svg-line-acc" x1="280" y1="110" x2="318" y2="40" marker-end="url(#m)"/><line class="svg-line-acc" x1="280" y1="116" x2="318" y2="98" marker-end="url(#m)"/><line class="svg-line-acc" x1="280" y1="122" x2="318" y2="156" marker-end="url(#m)"/><line class="svg-line-acc" x1="280" y1="128" x2="318" y2="210" marker-end="url(#m)"/><line class="svg-line-acc" x1="480" y1="38" x2="538" y2="38" marker-end="url(#m)"/><line class="svg-line-acc" x1="480" y1="98" x2="538" y2="98" marker-end="url(#m)"/><line class="svg-line-acc" x1="480" y1="158" x2="538" y2="158" marker-end="url(#m)"/></svg>
+      <figcaption>The app keeps an <strong>offline cache</strong> of the itinerary and boarding pass (plus a Wallet pass). The Search service fans out to many GDS providers in parallel and caches/streams fares; the Booking service is idempotent and handles 3DS payments; the Itinerary service tracks live trip status; push notifications cover disruptions.</figcaption>
+    </figure>
+
+    <h2 id="search">4 &middot; Search &mdash; the expensive part</h2>
+    <p>Flight search is one of the costliest queries in tech: a single route pulls dozens of fares from many providers of varying speed. Three techniques tame it:</p>
+    <ul class="clean">
+      <li><strong>Server-side fan-out</strong> &mdash; the backend queries providers in parallel and aggregates (the phone never does this).</li>
+      <li><strong>Cache by (origin, destination, date)</strong> with a short TTL &mdash; fares go stale within minutes, so the cache is small-window but high-hit during a search session.</li>
+      <li><strong>Stream results</strong> &mdash; show the first batch instantly and append more as slow providers respond, so the UI never feels frozen.</li>
+    </ul>
+
+    <h2 id="booking">5 &middot; Booking &amp; payment</h2>
+    <ul class="clean">
+      <li><strong>Idempotency keys</strong> &mdash; a dropped connection + retry must never double-book or double-charge.</li>
+      <li><strong>3DS / SCA</strong> &mdash; strong customer authentication (heavy in the EU) handled in-flow.</li>
+      <li><strong>Apple Pay / Google Pay</strong> first-class &mdash; fewer form fields, higher conversion.</li>
+      <li><strong>Optimistic UI</strong> &mdash; clear &ldquo;processing your booking&rdquo; state while the GDS confirms.</li>
+    </ul>
+
+    <h2 id="offline">6 &middot; Itinerary, boarding pass &amp; offline</h2>
+    <ul class="clean">
+      <li><strong>Offline-first</strong> &mdash; itinerary and boarding pass are cached on-device so they open in airplane mode or a dead-zone jet bridge.</li>
+      <li><strong>Wallet integration</strong> &mdash; PKPASS (Apple Wallet) / Google Wallet; the barcode shows on the lock screen without unlocking.</li>
+      <li><strong>Live updates</strong> &mdash; gate/seat/time changes pushed in real time; a Live Activity shows time-to-boarding for active flights.</li>
+      <li><strong>Timezone-aware</strong> &mdash; depart in one zone, arrive in another; always show the right local times.</li>
+    </ul>
+    <h2 id="subsystems">Key sub-systems</h2>
+    <ul class="clean">
+      <li><strong>Search service</strong> &mdash; GDS fan-out, fare cache, result streaming.</li>
+      <li><strong>Booking service</strong> &mdash; idempotent orders, payment/3DS, PNR creation.</li>
+      <li><strong>Itinerary service</strong> &mdash; trips, segments, live status.</li>
+      <li><strong>Mobile client</strong> &mdash; offline cache, Wallet passes, Live Activities.</li>
+      <li><strong>Notification service</strong> &mdash; check-in reminders, disruption alerts.</li>
+    </ul>
+    <h2 id="bottlenecks">Bottlenecks &amp; what to optimize next</h2>
+    <ul class="clean">
+      <li>Flight search latency is the bottleneck &mdash; fan out, cache, and stream results.</li>
+      <li>Connectivity at the airport is worst when stakes are highest &mdash; make trip data fully offline.</li>
+    </ul>
+    <h2 id="levels">Senior &middot; Staff &middot; Principal</h2>
+    <div class="ladder">
+      <div class="lv s"><span class="tier">Senior</span><p>Designs search fan-out/caching and a clean itinerary state.</p></div>
+      <div class="lv t"><span class="tier">Staff</span><p>Handles the offline boarding pass, booking idempotency, and timezone-aware trips.</p></div>
+      <div class="lv p"><span class="tier">Principal</span><p>Raises regulatory rules (DOT 24-hour cancellation, EU 261, GDPR for traveler data) and disruption re-accommodation flows.</p></div>
+    </div>
+    <h2 id="faq">Common follow-up questions</h2>
+    <details class="qa"><summary>Why is flight search so slow?</summary><div class="body"><p>Fares come from many providers (GDS) of varying speed, and fare rules are genuinely complex. You fan out in parallel, cache by route+date, and stream results so the user isn't blocked.</p></div></details>
+    <details class="qa"><summary>How do you stop a double-booking on a flaky network?</summary><div class="body"><p>An idempotency key on the booking request &mdash; a retried request returns the original booking instead of creating a second.</p></div></details>
+    <details class="qa"><summary>How does the boarding pass work with no signal?</summary><div class="body"><p>It's cached on-device and added to Apple/Google Wallet (PKPASS), so the barcode renders offline, even on the lock screen; updates apply when connectivity returns.</p></div></details>
+    <details class="qa"><summary>What separates a staff-level answer here?</summary><div class="body"><p>Raising the offline-first constraint, booking idempotency, timezone-aware itinerary display, and the disruption-handling flow &mdash; not just search and itinerary CRUD.</p></div></details>
+    <div class="recap"><span class="label">&#129504; Remember it</span>
+      <p>Mobile travel = <span class="hook">server-side search fan-out + idempotent booking + offline-first trips</span>.</p>
+      <ul>
+        <li>Search: fan out to providers, cache by route+date, stream results.</li>
+        <li>Booking: idempotency keys, 3DS, Wallet pay.</li>
+        <li>Trip: offline boarding pass (Wallet), live disruption updates, timezone-aware.</li>
+      </ul>
+    </div>
+
+    <div class="pagenav">
+      <a class="card" href="mobile-native.html"><span class="tag">&larr; Related</span><h3>Mobile Native</h3></a>
+      <a class="card" href="system-design-cases.html"><span class="tag">Back to &rarr;</span><h3>System Design II</h3></a>
+    </div>
+  </main>
+</div></div>
+<script src="assets/js/main.js"></script>
+</body>
+</html>

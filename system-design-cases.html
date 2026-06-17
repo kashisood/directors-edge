@@ -1,0 +1,514 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="warm">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>System Design II — Director's Edge</title>
+<meta name="description" content="Phase 2 system design: 30 real, worked system-design interview questions for engineering leaders, each broken down by requirements, core design, the hardest part, and the key trade-off." />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="assets/css/styles.css" />
+</head>
+<body data-theme="warm">
+
+<section class="hero">
+  <span class="eyebrow">Pillar 2 &middot; Phase 2</span>
+  <h1>System Design II &mdash; Case Studies</h1>
+  <p class="lead">Thirty real system-design questions, the kind you get at Google and other big-tech loops. Each is walked through at a leader&#8217;s altitude: clarify the requirements and scale, sketch the core design, name the hardest part, and state the key trade-off. Don&#8217;t memorize them &mdash; absorb the <em>pattern</em> so you can reason through any prompt.</p>
+</section>
+
+<div class="wrap section">
+<div class="page-layout">
+
+  <aside class="toc">
+    <strong>How to use</strong>
+    <a href="#flagship">Flagship deep-dives</a>
+    <a href="#method">The method</a>
+    <a href="#questions">All 30 questions</a>
+    <a href="#l1">Warm-ups (L1)</a>
+    <a href="#l2">Core (L2)</a>
+    <a href="#l3">Hard / scale (L3)</a>
+  </aside>
+
+  <main>
+    <div class="story"><span class="label">&#128214; The story</span>
+      <p>After enough designs you notice they&#8217;re the <em>same few stories retold</em>. Read-heavy? Precompute and cache. Write-heavy and moving? Partition and index. Money or seats? Be strongly consistent right there and nowhere else.</p>
+      <p>So don&#8217;t memorize thirty answers &mdash; collect a handful of <em>patterns</em> and learn which prompt triggers which. The six flagship deep-dives show the patterns in full; the rest are reps to recognize them fast.</p>
+      <p>When a new prompt lands, you won&#8217;t reach for a memorized solution &mdash; you&#8217;ll recognize the shape and reason from the pattern. That&#8217;s what separates a senior designer from a crammer.</p>
+    </div>
+
+
+    <div class="callout"><span class="label">&#11088; At Google</span><p>Design rounds assume scale and ambiguity. Apply the framework from <a href="system-design.html">System Design</a>, think planet-scale, and make trade-offs explicit. See <a href="google.html">Google Prep</a> for how this maps to GCA and Role-Related Knowledge.</p></div>
+
+        <h2 id="flagship">All 30 deep-dives</h2>
+    <p class="muted">Every problem below has a full deep-dive page &mdash; requirements, capacity math, API, data model, an architecture <strong>diagram</strong>, scaling, failure, and trade-offs. Click any tile.</p>
+    <div class="dd-grid">
+      <a class="dd-tile" href="sd-url-shortener.html"><span class="n">1</span><span>URL Shortener</span></a>
+      <a class="dd-tile" href="sd-pastebin.html"><span class="n">2</span><span>Pastebin</span></a>
+      <a class="dd-tile" href="sd-unique-id.html"><span class="n">3</span><span>Unique ID Generator</span></a>
+      <a class="dd-tile" href="sd-feature-flags.html"><span class="n">4</span><span>Feature Flags</span></a>
+      <a class="dd-tile" href="sd-rate-limiter.html"><span class="n">5</span><span>Rate Limiter</span></a>
+      <a class="dd-tile" href="sd-distributed-cache.html"><span class="n">6</span><span>Distributed Cache</span></a>
+      <a class="dd-tile" href="sd-api-gateway.html"><span class="n">7</span><span>API Gateway</span></a>
+      <a class="dd-tile" href="sd-news-feed.html"><span class="n">8</span><span>News Feed</span></a>
+      <a class="dd-tile" href="sd-photo-sharing.html"><span class="n">9</span><span>Photo Sharing</span></a>
+      <a class="dd-tile" href="sd-autocomplete.html"><span class="n">10</span><span>Autocomplete</span></a>
+      <a class="dd-tile" href="sd-notifications.html"><span class="n">11</span><span>Notifications</span></a>
+      <a class="dd-tile" href="sd-leaderboard.html"><span class="n">12</span><span>Leaderboard</span></a>
+      <a class="dd-tile" href="sd-job-scheduler.html"><span class="n">13</span><span>Job Scheduler</span></a>
+      <a class="dd-tile" href="sd-email.html"><span class="n">14</span><span>Email Service</span></a>
+      <a class="dd-tile" href="sd-chat.html"><span class="n">15</span><span>Chat System</span></a>
+      <a class="dd-tile" href="sd-web-crawler.html"><span class="n">16</span><span>Web Crawler</span></a>
+      <a class="dd-tile" href="sd-video.html"><span class="n">17</span><span>Video Streaming</span></a>
+      <a class="dd-tile" href="sd-file-sync.html"><span class="n">18</span><span>File Sync</span></a>
+      <a class="dd-tile" href="sd-ride-hailing.html"><span class="n">19</span><span>Ride-Hailing</span></a>
+      <a class="dd-tile" href="sd-food-delivery.html"><span class="n">20</span><span>Food Delivery</span></a>
+      <a class="dd-tile" href="sd-ticket-booking.html"><span class="n">21</span><span>Ticket Booking</span></a>
+      <a class="dd-tile" href="sd-payments.html"><span class="n">22</span><span>Payments / Wallet</span></a>
+      <a class="dd-tile" href="sd-message-queue.html"><span class="n">23</span><span>Message Queue</span></a>
+      <a class="dd-tile" href="sd-key-value-store.html"><span class="n">24</span><span>Key-Value Store</span></a>
+      <a class="dd-tile" href="sd-search-engine.html"><span class="n">25</span><span>Search Engine</span></a>
+      <a class="dd-tile" href="sd-ad-analytics.html"><span class="n">26</span><span>Ad Analytics</span></a>
+      <a class="dd-tile" href="sd-geo-search.html"><span class="n">27</span><span>Geospatial Search</span></a>
+      <a class="dd-tile" href="sd-observability.html"><span class="n">28</span><span>Observability</span></a>
+      <a class="dd-tile" href="sd-stock-exchange.html"><span class="n">29</span><span>Stock Exchange</span></a>
+      <a class="dd-tile" href="sd-google-docs.html"><span class="n">30</span><span>Collaborative Editing</span></a>
+          <a class="dd-tile" href="sd-mobile-travel.html"><span class="n">&#128241;</span><span>Mobile: Travel App</span></a>
+</div>
+
+    <h2 id="method">The method &mdash; same four moves every time</h2>
+    <p>Whatever the prompt, walk these out loud. The interviewer is scoring your structured thinking far more than any single component choice.</p>
+    <ul class="clean">
+      <li><strong>Clarify &amp; scale:</strong> who uses it, read vs write ratio, how many users/QPS, latency and consistency needs. Never design blind.</li>
+      <li><strong>Core design:</strong> the main components and data flow &mdash; API, storage, the few services that matter.</li>
+      <li><strong>Hardest part:</strong> name the real bottleneck or risk and how you&#8217;d tackle it. This is where seniority shows.</li>
+      <li><strong>Key trade-off:</strong> what you&#8217;re optimizing for and what you&#8217;re giving up (consistency vs availability, cost vs latency, simplicity vs scale).</li>
+    </ul>
+    <div class="say"><span class="label">Say it like a director</span><p>"Before I draw anything: what scale are we solving for, and are we optimizing for latency, cost, or consistency? The right design for a startup is the wrong one for a billion users, so let me anchor on that first."</p></div>
+
+    <h2 id="questions">The 30 questions</h2>
+    <div class="search"><input type="text" data-search placeholder="Search the 30 designs&hellip;" /></div>
+    <div class="btn-row" style="margin-top:0">
+      <button class="btn" data-open-all>Expand all</button>
+      <button class="btn" data-close-all>Collapse all</button>
+    </div>
+    <p class="no-results">No designs match your search.</p>
+
+    <div data-search-group>
+      <details class="qa" data-searchable data-level="1" id="l1">
+        <summary>1 &middot; Design a URL shortener (TinyURL)</summary>
+        <div class="body">
+          <ul class="clean">
+            <li><strong><a href="sd-url-shortener.html">&#128269; Full deep-dive (with diagrams) &rarr;</a></strong></li>
+            <li><strong>Scale:</strong> Read-heavy, ~100:1 reads:writes; e.g. 100M new links/day (~1.2K writes/s) vs tens of thousands of redirects/s.</li>
+            <li><strong>Core design:</strong> Write API returns a short code; a KV store (DynamoDB / Redis) maps <code>code &rarr; longUrl</code>; redirects served from cache + CDN; stateless app tier behind an LB; HTTP 301/302.</li>
+            <li><strong>Data model:</strong> <code>code</code> (PK, ~7 chars base62), longUrl, ownerId, createdAt, expiry.</li>
+            <li><strong>Hardest part:</strong> Generating short unique codes with no coordination &mdash; base62 of a Snowflake/counter range, or hash(longUrl) with collision retry.</li>
+            <li><strong>Key trade-off:</strong> Counter (sequential, guessable) vs hash (no coordination, collisions); 301 (cacheable, no analytics) vs 302 (counts every hit).</li>
+          </ul>
+        </div>
+      </details>
+      <details class="qa" data-searchable data-level="1">
+        <summary>2 &middot; Design Pastebin</summary>
+        <div class="body">
+          <ul class="clean">
+            <li><strong><a href="sd-pastebin.html">&#128269; Full deep-dive (with diagrams) &rarr;</a></strong></li>
+            <li><strong>Scale:</strong> Read-heavy; large text blobs; optional TTL expiry.</li>
+            <li><strong>Core design:</strong> Blob in object storage (S3); metadata + short key in a DB/KV; CDN for popular reads; background expiry sweeper.</li>
+            <li><strong>Data model:</strong> pasteId (PK), blobUrl, language, createdAt, expireAt, visibility.</li>
+            <li><strong>Hardest part:</strong> Cheaply storing many large blobs while keeping lookups fast and supporting expiry without scanning everything.</li>
+            <li><strong>Key trade-off:</strong> Blob store (cheap, scalable) vs DB (simple, pricey at size) &mdash; DB holds only metadata; TTL precision vs sweep cost.</li>
+          </ul>
+        </div>
+      </details>
+      <details class="qa" data-searchable data-level="1">
+        <summary>3 &middot; Design a distributed unique ID generator</summary>
+        <div class="body">
+          <ul class="clean">
+            <li><strong><a href="sd-unique-id.html">&#128269; Full deep-dive (with diagrams) &rarr;</a></strong></li>
+            <li><strong>Scale:</strong> Millions of IDs/s across many hosts; ideally time-sortable; 64-bit.</li>
+            <li><strong>Core design:</strong> Snowflake: <code>[timestamp | machineId | sequence]</code> generated locally, zero coordination; machineId from a registry.</li>
+            <li><strong>Data model:</strong> 64-bit ID = 41 bits ms-timestamp + 10 bits machine + 12 bits per-ms sequence.</li>
+            <li><strong>Hardest part:</strong> Avoiding collisions and a central bottleneck while staying roughly sortable; clock skew / NTP regression.</li>
+            <li><strong>Key trade-off:</strong> UUID (no coordination, unsortable, 128-bit) vs DB auto-increment (sortable, single bottleneck) vs Snowflake (balanced, clock-dependent).</li>
+          </ul>
+        </div>
+      </details>
+      <details class="qa" data-searchable data-level="1">
+        <summary>4 &middot; Design a feature-flag / config service</summary>
+        <div class="body">
+          <ul class="clean">
+            <li><strong><a href="sd-feature-flags.html">&#128269; Full deep-dive (with diagrams) &rarr;</a></strong></li>
+            <li><strong>Scale:</strong> Read-heavy from every service instance; rare writes; changes must propagate in seconds.</li>
+            <li><strong>Core design:</strong> Small flag store + API; SDK in each service caches flags with short TTL or a streaming/push channel (SSE / pub-sub) for instant invalidation.</li>
+            <li><strong>Data model:</strong> flagKey, value/variant, targeting rules (by user %, region), version, updatedAt.</li>
+            <li><strong>Hardest part:</strong> Propagating a change to thousands of instances fast without hammering the store on every request.</li>
+            <li><strong>Key trade-off:</strong> Polling (simple, laggy, load) vs push/streaming (instant, more moving parts); cache aggressively and tolerate brief staleness.</li>
+          </ul>
+        </div>
+      </details>
+      <details class="qa" data-searchable data-level="2" id="l2">
+        <summary>5 &middot; Design a rate limiter</summary>
+        <div class="body">
+          <ul class="clean">
+            <li><strong><a href="sd-rate-limiter.html">&#128269; Full deep-dive (with diagrams) &rarr;</a></strong></li>
+            <li><strong>Scale:</strong> ~1M checks/s across the gateway fleet; must add &lt;1ms; global (not per-node) limit.</li>
+            <li><strong>Core design:</strong> Token bucket per key in shared Redis; check-and-decrement as one atomic Lua script; enforced at the API gateway; reject with 429 + Retry-After.</li>
+            <li><strong>Data model:</strong> <code>bucket:{key} =&gt; {tokens, lastRefillTs}</code> in Redis; rules per route.</li>
+            <li><strong>Hardest part:</strong> Atomic distributed counting under concurrency without a per-request network hop becoming the bottleneck.</li>
+            <li><strong>Key trade-off:</strong> Centralized Redis (accurate, +hop) vs local bucket + periodic sync (fast, approximate); fail-open vs fail-closed.</li>
+          </ul>
+        </div>
+      </details>
+      <details class="qa" data-searchable data-level="2">
+        <summary>6 &middot; Design a distributed cache (Redis-like)</summary>
+        <div class="body">
+          <ul class="clean">
+            <li><strong><a href="sd-distributed-cache.html">&#128269; Full deep-dive (with diagrams) &rarr;</a></strong></li>
+            <li><strong>Scale:</strong> Sub-ms reads fronting a slow store; 100s of GB&ndash;TBs in RAM; high throughput.</li>
+            <li><strong>Core design:</strong> Shard keys via consistent hashing; replicate each shard (primary + replicas); LRU eviction; cache-aside in the app.</li>
+            <li><strong>Data model:</strong> Opaque key &rarr; serialized value + TTL; slots mapped to nodes by hash ring.</li>
+            <li><strong>Hardest part:</strong> Hot keys overloading one shard; invalidation; thundering-herd on expiry.</li>
+            <li><strong>Key trade-off:</strong> More replicas = availability + read scale but memory cost + replication lag; consistent hashing minimizes reshuffle on membership change.</li>
+          </ul>
+        </div>
+      </details>
+      <details class="qa" data-searchable data-level="2">
+        <summary>7 &middot; Design an API gateway</summary>
+        <div class="body">
+          <ul class="clean">
+            <li><strong><a href="sd-api-gateway.html">&#128269; Full deep-dive (with diagrams) &rarr;</a></strong></li>
+            <li><strong>Scale:</strong> Fronts all traffic (100Ks req/s); must add minimal latency and be HA.</li>
+            <li><strong>Core design:</strong> Stateless gateway tier behind an L4/L7 LB doing TLS termination, authN, rate limiting, routing/aggregation, and emitting metrics/traces.</li>
+            <li><strong>Data model:</strong> Route table (path &rarr; service), auth keys/JWT validation config, per-route limits.</li>
+            <li><strong>Hardest part:</strong> It&#8217;s a central choke point &mdash; one bug or slowdown hits everything.</li>
+            <li><strong>Key trade-off:</strong> Centralizing cross-cutting concerns (clean services) vs a single dependency (mitigate with horizontal scale, caching, graceful degradation).</li>
+          </ul>
+        </div>
+      </details>
+      <details class="qa" data-searchable data-level="2" id="l2b">
+        <summary>8 &middot; Design a social news feed (Twitter / X)</summary>
+        <div class="body">
+          <ul class="clean">
+            <li><strong><a href="sd-news-feed.html">&#128269; Full deep-dive (with diagrams) &rarr;</a></strong></li>
+            <li><strong>Scale:</strong> ~300M DAU, 50:1 read:write; ~35K posts/s peak, ~1M timeline reads/s peak.</li>
+            <li><strong>Core design:</strong> Fan-out on write: Post service persists to Cassandra, then async workers push tweetIds into each follower&#8217;s Redis timeline list; read = fetch one list + hydrate.</li>
+            <li><strong>Data model:</strong> tweets(tweetId PK, authorId, text, mediaIds, ts); follows graph; <code>timeline:{userId} =&gt; [tweetId&hellip;]</code> capped ~800.</li>
+            <li><strong>Hardest part:</strong> Celebrity fan-out (one post &rarr; 100M writes) &mdash; solved with a hybrid (pull-on-read for high-follower accounts).</li>
+            <li><strong>Key trade-off:</strong> Extra write work for cheap reads; eventual consistency for availability; hybrid complexity to avoid write storms.</li>
+          </ul>
+        </div>
+      </details>
+      <details class="qa" data-searchable data-level="2">
+        <summary>9 &middot; Design photo sharing (Instagram)</summary>
+        <div class="body">
+          <ul class="clean">
+            <li><strong><a href="sd-photo-sharing.html">&#128269; Full deep-dive (with diagrams) &rarr;</a></strong></li>
+            <li><strong>Scale:</strong> Read-heavy image serving + feed; upload spikes; global.</li>
+            <li><strong>Core design:</strong> Images to object storage + CDN; metadata in a sharded DB; feed via the news-feed pattern; async pipeline makes thumbnails/sizes on upload.</li>
+            <li><strong>Data model:</strong> media(id, ownerId, blobUrls{sizes}, caption, ts); follows; timeline cache.</li>
+            <li><strong>Hardest part:</strong> Serving images globally at low latency and absorbing upload bursts.</li>
+            <li><strong>Key trade-off:</strong> Pre-generate sizes (storage cost, fast serve) vs on-the-fly (compute, latency); CDN cost vs origin load.</li>
+          </ul>
+        </div>
+      </details>
+      <details class="qa" data-searchable data-level="2">
+        <summary>10 &middot; Design search autocomplete (typeahead)</summary>
+        <div class="body">
+          <ul class="clean">
+            <li><strong><a href="sd-autocomplete.html">&#128269; Full deep-dive (with diagrams) &rarr;</a></strong></li>
+            <li><strong>Scale:</strong> Must feel instant (p99 &lt; ~50ms); huge query volume; ranked by popularity.</li>
+            <li><strong>Core design:</strong> Precompute a ranked prefix structure (trie / FST) offline from query logs; serve from in-memory services behind heavy edge caching; update async.</li>
+            <li><strong>Data model:</strong> trie nodes &rarr; top-k completions per prefix with frequency scores.</li>
+            <li><strong>Hardest part:</strong> Hitting a tight latency budget while keeping suggestions fresh and well-ranked.</li>
+            <li><strong>Key trade-off:</strong> Freshness vs latency &mdash; precomputed cached results are fast but stale; real-time updates add cost.</li>
+          </ul>
+        </div>
+      </details>
+      <details class="qa" data-searchable data-level="2">
+        <summary>11 &middot; Design a notification system</summary>
+        <div class="body">
+          <ul class="clean">
+            <li><strong><a href="sd-notifications.html">&#128269; Full deep-dive (with diagrams) &rarr;</a></strong></li>
+            <li><strong>Scale:</strong> Multi-channel (push/email/SMS/in-app); millions/min; seconds of delay OK.</li>
+            <li><strong>Core design:</strong> Producers publish events to a queue (Kafka); stateless workers apply preferences + rate limits, render templates, hand off to provider adapters (APNs/FCM, SES, Twilio).</li>
+            <li><strong>Data model:</strong> notification(id, userId, channel, template, payload, status); user prefs; dedupe keys.</li>
+            <li><strong>Hardest part:</strong> Reliable delivery despite provider failures, with dedup and quiet-hours/preferences.</li>
+            <li><strong>Key trade-off:</strong> At-least-once + idempotent dedup (simple) vs exactly-once (complex); per-provider retry/backoff.</li>
+          </ul>
+        </div>
+      </details>
+      <details class="qa" data-searchable data-level="2">
+        <summary>12 &middot; Design a leaderboard</summary>
+        <div class="body">
+          <ul class="clean">
+            <li><strong><a href="sd-leaderboard.html">&#128269; Full deep-dive (with diagrams) &rarr;</a></strong></li>
+            <li><strong>Scale:</strong> Real-time ranks for up to 10s of millions of players; constant score updates.</li>
+            <li><strong>Core design:</strong> Sorted set (Redis ZSET) keyed by score for top-N and rank queries; shard by game/segment; periodic snapshots to a DB for durability.</li>
+            <li><strong>Data model:</strong> <code>zset board:{id} =&gt; member:score</code>; archive table for history.</li>
+            <li><strong>Hardest part:</strong> Exact rank for tens of millions updated constantly is expensive.</li>
+            <li><strong>Key trade-off:</strong> Exact ranking (costly at scale) vs approximate (bucketing/percentiles, cheap); memory vs durability.</li>
+          </ul>
+        </div>
+      </details>
+      <details class="qa" data-searchable data-level="2">
+        <summary>13 &middot; Design a distributed job scheduler (cron at scale)</summary>
+        <div class="body">
+          <ul class="clean">
+            <li><strong><a href="sd-job-scheduler.html">&#128269; Full deep-dive (with diagrams) &rarr;</a></strong></li>
+            <li><strong>Scale:</strong> Millions of scheduled jobs; run within seconds of due time; no duplicate runs.</li>
+            <li><strong>Core design:</strong> Jobs stored with nextRunAt, partitioned; workers claim due jobs via a lease/lock (DB row lock or Redis); execute with retries + dead-letter; idempotent completion.</li>
+            <li><strong>Data model:</strong> job(id, schedule, nextRunAt, status, ownerLease, attempts).</li>
+            <li><strong>Hardest part:</strong> Guaranteeing each job runs despite worker crashes, without running twice.</li>
+            <li><strong>Key trade-off:</strong> At-least-once + idempotency (safe, simple) vs exactly-once (hard); polling interval vs timeliness.</li>
+          </ul>
+        </div>
+      </details>
+      <details class="qa" data-searchable data-level="2">
+        <summary>14 &middot; Design an email service (Gmail-scale)</summary>
+        <div class="body">
+          <ul class="clean">
+            <li><strong><a href="sd-email.html">&#128269; Full deep-dive (with diagrams) &rarr;</a></strong></li>
+            <li><strong>Scale:</strong> Billions of mailboxes; massive send + receive; full-text search.</li>
+            <li><strong>Core design:</strong> SMTP ingestion tier; bodies in object storage with a per-user search index (inverted index / search cluster); sending via a queue with retries, backoff, reputation; async spam filtering.</li>
+            <li><strong>Data model:</strong> message(id, mailboxId, headers, blobRef, labels, ts); per-user index shards.</li>
+            <li><strong>Hardest part:</strong> Storage at scale, fast search across huge mailboxes, and deliverability/spam.</li>
+            <li><strong>Key trade-off:</strong> Index everything (fast search, storage/compute cost) vs lazy; send throughput vs protecting sender reputation.</li>
+          </ul>
+        </div>
+      </details>
+      <details class="qa" data-searchable data-level="3" id="l3">
+        <summary>15 &middot; Design a chat system (WhatsApp / Messenger)</summary>
+        <div class="body">
+          <ul class="clean">
+            <li><strong><a href="sd-chat.html">&#128269; Full deep-dive (with diagrams) &rarr;</a></strong></li>
+            <li><strong>Scale:</strong> ~2B users, ~100B msgs/day (~1.2M/s); 100s of millions of concurrent connections.</li>
+            <li><strong>Core design:</strong> Persistent WebSocket to connection servers; a router + queue deliver via a userId&rarr;server registry (Redis); store-and-forward for offline; per-conversation seq for ordering.</li>
+            <li><strong>Data model:</strong> messages(convId PK, seq clustering, senderId, body, ts); membership; <code>session: userId&rarr;connServer</code>; offline queue.</li>
+            <li><strong>Hardest part:</strong> Holding 100s of millions of stateful sockets and routing a message to the recipient&#8217;s current server.</li>
+            <li><strong>Key trade-off:</strong> At-least-once + dedup over exactly-once; stateful connections (push, low latency) vs harder routing/failover; E2E encryption vs server features.</li>
+          </ul>
+        </div>
+      </details>
+      <details class="qa" data-searchable data-level="3">
+        <summary>16 &middot; Design a web crawler</summary>
+        <div class="body">
+          <ul class="clean">
+            <li><strong><a href="sd-web-crawler.html">&#128269; Read the full deep-dive (with diagrams) &rarr;</a></strong></li>
+            <li><strong>Scale:</strong> Crawl billions of pages; polite per-domain; dedup at billions of URLs; stay fresh.</li>
+            <li><strong>Core design:</strong> URL frontier (priority queue) &rarr; distributed fetchers (respect robots.txt, per-domain rate limit) &rarr; parser extracts links &rarr; back to frontier; seen-set via bloom filter; content to storage.</li>
+            <li><strong>Data model:</strong> frontier (url, priority, host); seen bloom filter; doc store (url, contentHash, fetchedAt).</li>
+            <li><strong>Hardest part:</strong> Scale + politeness + dedup + avoiding crawler traps and duplicate content.</li>
+            <li><strong>Key trade-off:</strong> Crawl freshness vs cost &mdash; recrawl often (fresh, wasteful) vs prioritize by importance/change rate.</li>
+          </ul>
+        </div>
+      </details>
+      <details class="qa" data-searchable data-level="3" id="l3b">
+        <summary>17 &middot; Design video streaming (YouTube / Netflix)</summary>
+        <div class="body">
+          <ul class="clean">
+            <li><strong><a href="sd-video.html">&#128269; Full deep-dive (with diagrams) &rarr;</a></strong></li>
+            <li><strong>Scale:</strong> ~1B watch-hours/day; hundreds of upload-hours/min; petabytes; egress-dominated.</li>
+            <li><strong>Core design:</strong> Resumable upload direct to blob; async chunked transcoding pipeline &rarr; multiple renditions (240p&ndash;4K) + HLS/DASH manifest; multi-tier CDN serves segments; metadata DB.</li>
+            <li><strong>Data model:</strong> video(id, ownerId, status, renditions[], manifestUrl); segments in object storage.</li>
+            <li><strong>Hardest part:</strong> Global low-latency delivery + the enormous storage/egress cost; transcoding throughput.</li>
+            <li><strong>Key trade-off:</strong> Pre-transcode many renditions (storage/compute vs smooth playback) &mdash; lazy-transcode the long tail; CDN cost vs latency; eventual-consistent view counts.</li>
+          </ul>
+        </div>
+      </details>
+      <details class="qa" data-searchable data-level="3">
+        <summary>18 &middot; Design file storage &amp; sync (Dropbox / Drive)</summary>
+        <div class="body">
+          <ul class="clean">
+            <li><strong><a href="sd-file-sync.html">&#128269; Full deep-dive (with diagrams) &rarr;</a></strong></li>
+            <li><strong>Scale:</strong> Large files; sync across devices; offline edits; sharing.</li>
+            <li><strong>Core design:</strong> Content-hashed chunks in object storage; a metadata service tracks file tree + versions; clients do delta sync (only changed chunks) and receive change notifications.</li>
+            <li><strong>Data model:</strong> file(id, ownerId, path, version); chunk(hash, blobRef); device cursors.</li>
+            <li><strong>Hardest part:</strong> Efficient sync of large files and resolving conflicting concurrent edits.</li>
+            <li><strong>Key trade-off:</strong> Chunk dedup (bandwidth/storage savings vs metadata complexity); strong consistency vs offline editing + later merge.</li>
+          </ul>
+        </div>
+      </details>
+      <details class="qa" data-searchable data-level="3" id="l3c">
+        <summary>19 &middot; Design ride-hailing (Uber / Lyft)</summary>
+        <div class="body">
+          <ul class="clean">
+            <li><strong><a href="sd-ride-hailing.html">&#128269; Full deep-dive (with diagrams) &rarr;</a></strong></li>
+            <li><strong>Scale:</strong> ~5M online drivers pinging every ~4s = ~1.25M location writes/s; matching read-heavy.</li>
+            <li><strong>Core design:</strong> Location ingest &rarr; in-memory geospatial index (geohash / QuadTree / S2) sharded by region; matching service queries nearby cells, ranks by ETA; durable trip state machine; maps/ETA + surge.</li>
+            <li><strong>Data model:</strong> Ephemeral driver locations (in-memory, TTL); durable trip(id, riderId, driverId, state, ts).</li>
+            <li><strong>Hardest part:</strong> Indexing 1M+ moving points/s so &lsquo;who&#8217;s near this rider&rsquo; answers in ms.</li>
+            <li><strong>Key trade-off:</strong> Geohash (simple, fixed cells) vs QuadTree (adapts to density); ephemeral locations (write-speed) vs durable trips (correctness); geo-sharding vs cross-boundary matching.</li>
+          </ul>
+        </div>
+      </details>
+      <details class="qa" data-searchable data-level="3">
+        <summary>20 &middot; Design food delivery (DoorDash)</summary>
+        <div class="body">
+          <ul class="clean">
+            <li><strong><a href="sd-food-delivery.html">&#128269; Full deep-dive (with diagrams) &rarr;</a></strong></li>
+            <li><strong>Scale:</strong> Three-sided (customer, restaurant, courier); real-time order + courier tracking.</li>
+            <li><strong>Core design:</strong> Order service + restaurant catalog/availability + courier matching (geospatial, like Uber) + payments; an event-driven order lifecycle coordinates state.</li>
+            <li><strong>Data model:</strong> order(id, items, state); restaurant(menu, availability); courier locations (geo index).</li>
+            <li><strong>Hardest part:</strong> Coordinating three parties in real time and accurate ETAs (prep time + travel).</li>
+            <li><strong>Key trade-off:</strong> Courier assignment for speed vs efficiency (batch deliveries); availability consistency vs latency.</li>
+          </ul>
+        </div>
+      </details>
+      <details class="qa" data-searchable data-level="3">
+        <summary>21 &middot; Design ticket booking / flash sale (Ticketmaster)</summary>
+        <div class="body">
+          <ul class="clean">
+            <li><strong><a href="sd-ticket-booking.html">&#128269; Read the full deep-dive (with diagrams) &rarr;</a></strong></li>
+            <li><strong>Scale:</strong> Limited seats; massive concurrent demand spikes; zero double-booking.</li>
+            <li><strong>Core design:</strong> Seat inventory with short-lived reservations (hold + TTL); a virtual waiting room/queue throttles the spike; strongly-consistent seat lock; idempotent payment.</li>
+            <li><strong>Data model:</strong> seat(eventId, seatId, state{free|held|sold}, holdExpiry, version) with optimistic locking.</li>
+            <li><strong>Hardest part:</strong> Preventing double-selling the same seat under extreme contention.</li>
+            <li><strong>Key trade-off:</strong> Correctness over availability for the seat lock (the one strongly-consistent spot); everything else stays highly available.</li>
+          </ul>
+        </div>
+      </details>
+      <details class="qa" data-searchable data-level="3">
+        <summary>22 &middot; Design a payment / digital wallet</summary>
+        <div class="body">
+          <ul class="clean">
+            <li><strong><a href="sd-payments.html">&#128269; Read the full deep-dive (with diagrams) &rarr;</a></strong></li>
+            <li><strong>Scale:</strong> Money movement; never lose or double-charge; fully auditable.</li>
+            <li><strong>Core design:</strong> Idempotency key on every op; a double-entry ledger as source of truth; strong consistency; async fraud checks; reconciliation jobs; sagas for multi-step distributed transactions.</li>
+            <li><strong>Data model:</strong> ledger_entry(txnId, account, debit/credit, amount, ts); idempotency_keys table.</li>
+            <li><strong>Hardest part:</strong> Exactly-once money movement across services that fail and retry.</li>
+            <li><strong>Key trade-off:</strong> Correctness + auditability dominate &mdash; accept latency/complexity (idempotency, ledger, reconciliation) over any risk of a wrong balance.</li>
+          </ul>
+        </div>
+      </details>
+      <details class="qa" data-searchable data-level="3" id="l3d">
+        <summary>23 &middot; Design a distributed message queue (Kafka)</summary>
+        <div class="body">
+          <ul class="clean">
+            <li><strong><a href="sd-message-queue.html">&#128269; Full deep-dive (with diagrams) &rarr;</a></strong></li>
+            <li><strong>Scale:</strong> Millions of msgs/s; multi-day retention; ordering; replay.</li>
+            <li><strong>Core design:</strong> Topics split into partitions = append-only logs across brokers; producers append by key; consumer groups read by offset; replication factor + ISR + leader election.</li>
+            <li><strong>Data model:</strong> partition log files (offset &rarr; record); committed consumer offsets; replica sets.</li>
+            <li><strong>Hardest part:</strong> High throughput + durability while preserving ordering and handling consumer failure.</li>
+            <li><strong>Key trade-off:</strong> More partitions = parallelism but no global order; at-least-once vs exactly-once (idempotent producer + txns); retention cost vs replay.</li>
+          </ul>
+        </div>
+      </details>
+      <details class="qa" data-searchable data-level="3">
+        <summary>24 &middot; Design a key-value store (DynamoDB / Cassandra)</summary>
+        <div class="body">
+          <ul class="clean">
+            <li><strong><a href="sd-key-value-store.html">&#128269; Read the full deep-dive (with diagrams) &rarr;</a></strong></li>
+            <li><strong>Scale:</strong> Highly available, horizontally scalable, multi-region, tunable consistency.</li>
+            <li><strong>Core design:</strong> Partition via consistent hashing; replicate to N nodes; quorum reads/writes (R+W&gt;N); gossip membership; versioning / vector clocks for conflicts; hinted handoff.</li>
+            <li><strong>Data model:</strong> key &rarr; value + version vector; ring of virtual nodes.</li>
+            <li><strong>Hardest part:</strong> Staying available during node/partition failures while bounding inconsistency.</li>
+            <li><strong>Key trade-off:</strong> CAP: favors availability + eventual consistency; tuning R/W trades latency for consistency per call.</li>
+          </ul>
+        </div>
+      </details>
+      <details class="qa" data-searchable data-level="3">
+        <summary>25 &middot; Design a search engine</summary>
+        <div class="body">
+          <ul class="clean">
+            <li><strong><a href="sd-search-engine.html">&#128269; Read the full deep-dive (with diagrams) &rarr;</a></strong></li>
+            <li><strong>Scale:</strong> Index huge corpora; low-latency ranked queries; keep fresh.</li>
+            <li><strong>Core design:</strong> Crawler &rarr; indexer builds a sharded inverted index (term &rarr; postings) &rarr; query service scatters to shards, gathers, ranks (TF-IDF/BM25 + signals); cache popular queries.</li>
+            <li><strong>Data model:</strong> inverted index shards; doc store; ranking signal store.</li>
+            <li><strong>Hardest part:</strong> Relevance ranking + scatter-gather across a massive index within tight latency.</li>
+            <li><strong>Key trade-off:</strong> Index freshness vs cost; precomputed ranking signals (fast, lag reality); more shards = parallelism + more scatter-gather overhead.</li>
+          </ul>
+        </div>
+      </details>
+      <details class="qa" data-searchable data-level="3">
+        <summary>26 &middot; Design ad-click / event analytics</summary>
+        <div class="body">
+          <ul class="clean">
+            <li><strong><a href="sd-ad-analytics.html">&#128269; Full deep-dive (with diagrams) &rarr;</a></strong></li>
+            <li><strong>Scale:</strong> Billions of events/day; near-real-time aggregates + accurate billing.</li>
+            <li><strong>Core design:</strong> Stream ingest (Kafka) &rarr; stream processor (Flink/Spark) for real-time aggregates &rarr; OLAP store (Druid/ClickHouse); a batch path reconciles for accuracy (lambda/kappa).</li>
+            <li><strong>Data model:</strong> raw events (append); pre-aggregated rollups by dimension/time.</li>
+            <li><strong>Hardest part:</strong> Counting accurately at huge volume despite duplicates and late/out-of-order events &mdash; it bills money.</li>
+            <li><strong>Key trade-off:</strong> Real-time (fast, approximate) vs batch (accurate, delayed); exactly-once aggregation needs idempotency/dedup.</li>
+          </ul>
+        </div>
+      </details>
+      <details class="qa" data-searchable data-level="3">
+        <summary>27 &middot; Design nearby / geospatial search (Maps, Yelp)</summary>
+        <div class="body">
+          <ul class="clean">
+            <li><strong><a href="sd-geo-search.html">&#128269; Full deep-dive (with diagrams) &rarr;</a></strong></li>
+            <li><strong>Scale:</strong> Find POIs within radius/region, fast, global; read-heavy.</li>
+            <li><strong>Core design:</strong> Index locations with geohash / QuadTree / S2 cells so nearby points share keys; query the cell + neighbors; cache hot regions.</li>
+            <li><strong>Data model:</strong> poi(id, lat, lng, cellId, attrs); cell &rarr; poi list.</li>
+            <li><strong>Hardest part:</strong> Querying &lsquo;what&#8217;s near me&rsquo; without scanning, across uneven density (city vs rural).</li>
+            <li><strong>Key trade-off:</strong> Cell size: fine (precise, bigger index, more lookups) vs coarse (cheap, less precise).</li>
+          </ul>
+        </div>
+      </details>
+      <details class="qa" data-searchable data-level="3">
+        <summary>28 &middot; Design an observability / metrics system</summary>
+        <div class="body">
+          <ul class="clean">
+            <li><strong><a href="sd-observability.html">&#128269; Full deep-dive (with diagrams) &rarr;</a></strong></li>
+            <li><strong>Scale:</strong> High-volume, high-cardinality time-series; near-real-time query + alerting.</li>
+            <li><strong>Core design:</strong> Agents push metrics &rarr; ingestion tier &rarr; time-series DB (Prometheus/M3/Mimir) with downsampling + retention tiers; query layer + alerting engine; logs/traces alongside.</li>
+            <li><strong>Data model:</strong> series(metric + labels) &rarr; (timestamp, value); rollups for old data.</li>
+            <li><strong>Hardest part:</strong> High cardinality (many unique label sets) exploding storage + query cost.</li>
+            <li><strong>Key trade-off:</strong> Retention/resolution vs cost (keep recent high-res, downsample old); cardinality limits vs granularity.</li>
+          </ul>
+        </div>
+      </details>
+      <details class="qa" data-searchable data-level="3">
+        <summary>29 &middot; Design a stock exchange / matching engine</summary>
+        <div class="body">
+          <ul class="clean">
+            <li><strong><a href="sd-stock-exchange.html">&#128269; Full deep-dive (with diagrams) &rarr;</a></strong></li>
+            <li><strong>Scale:</strong> Ultra-low latency (&micro;s); deterministic, fair ordering; durable; market-data fan-out.</li>
+            <li><strong>Core design:</strong> In-memory order book with a single-threaded matching engine per instrument (determinism); a sequenced append-only event log for durability/replay; separate market-data publishers; co-location.</li>
+            <li><strong>Data model:</strong> order book (price levels &rarr; FIFO queues); event log of sequenced orders/trades.</li>
+            <li><strong>Hardest part:</strong> Microsecond latency + strict determinism/fairness while staying durable.</li>
+            <li><strong>Key trade-off:</strong> Latency vs durability (in-memory speed + fast log for recovery); single-threaded match (ordering vs per-instrument parallelism).</li>
+          </ul>
+        </div>
+      </details>
+      <details class="qa" data-searchable data-level="3">
+        <summary>30 &middot; Design collaborative editing (Google Docs)</summary>
+        <div class="body">
+          <ul class="clean">
+            <li><strong><a href="sd-google-docs.html">&#128269; Read the full deep-dive (with diagrams) &rarr;</a></strong></li>
+            <li><strong>Scale:</strong> Many users edit one doc simultaneously; low latency; no lost edits.</li>
+            <li><strong>Core design:</strong> Clients connect over WebSocket to a document service; concurrent edits merged via Operational Transformation (OT) or CRDTs so replicas converge; periodic snapshots + op log persist state.</li>
+            <li><strong>Data model:</strong> doc(id, snapshot, version); op log (docId, op, version, authorId).</li>
+            <li><strong>Hardest part:</strong> Merging concurrent edits into one consistent document with no conflicts or lost changes.</li>
+            <li><strong>Key trade-off:</strong> OT (compact, server-coordinated, complex) vs CRDT (no central coordination, more metadata) &mdash; both converge conflict-free.</li>
+          </ul>
+        </div>
+      </details>
+    </div>
+
+    <div class="callout warn"><span class="label">Remember</span><p>These answers are deliberately at leadership altitude &mdash; components, bottlenecks, and trade-offs, not code. In the room, go only as deep as asked, keep narrating your reasoning, and say what would change your design.</p></div>
+
+    
+    <div class="recap"><span class="label">&#129504; Remember it</span>
+      <p>Thirty designs are really <span class="hook">a few patterns retold</span> &mdash; learn to recognize the shape.</p>
+      <ul>
+        <li>Read-heavy &rarr; precompute + cache (feed, autocomplete).</li>
+        <li>Moving/geo &rarr; partition + spatial index (Uber, Maps).</li>
+        <li>Money/seats &rarr; strong consistency only where it&#8217;s needed.</li>
+      </ul>
+    </div>
+
+    <div class="pagenav">
+      <a class="card" href="system-design.html"><span class="tag">&larr; Phase 1</span><h3>System Design</h3></a>
+      <a class="card" href="google.html"><span class="tag">Apply it &rarr;</span><h3>Google Prep</h3></a>
+    </div>
+
+  </main>
+</div>
+</div>
+
+<script src="assets/js/main.js"></script>
+</body>
+</html>

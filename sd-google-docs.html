@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="warm">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Design Collaborative Editing (Google Docs) — Director's Edge</title>
+<meta name="description" content="System design deep-dive: Design Collaborative Editing (Google Docs)." />
+<link rel="preconnect" href="https://fonts.googleapis.com" /><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="assets/css/styles.css" />
+</head>
+<body data-theme="warm">
+<section class="hero"><span class="eyebrow">System design deep-dive</span><h1>Design Collaborative Editing (Google Docs)</h1><p class="lead">A deep-dive into real-time co-editing: operations over a document, Operational Transformation vs CRDTs for conflict-free merge, op logs and snapshots.</p></section>
+<div class="wrap section"><div class="page-layout">
+  <aside class="toc"><strong>On this page</strong>
+    <a href="#think">How to think (step by step)</a>
+    <a href="#reqs">1 · Requirements</a>
+    <a href="#capacity">2 · Capacity</a>
+    <a href="#api">3 · Concurrency model</a>
+    <a href="#data">4 · Data model</a>
+    <a href="#arch">5 · Architecture</a>
+    <a href="#hard">6 · The hard part</a>
+    <a href="#scale">7 · Scaling</a>
+    <a href="#tradeoffs">8 · Trade-offs</a>
+    <a href="#subsystems">Key sub-systems</a>
+    <a href="#bottlenecks">Bottlenecks</a>
+    <a href="#levels">Senior / Staff / Principal</a>
+    <a href="#faq">Follow-up Q&amp;A</a>
+  </aside>
+  <main>
+    <div class="callout"><span class="label">&#11088; At Google</span><p>Drive it top-down: requirements &rarr; scale &rarr; design &rarr; bottleneck &rarr; trade-offs. Back to <a href="system-design-cases.html">System Design II</a>.</p></div>
+    <div class="story"><span class="label">&#128214; The story</span>
+      <p>Two people typing in the same paragraph at the same instant should never clobber each other &mdash; that&#8217;s the whole challenge. Edits can&#8217;t be saved as whole documents; they must be tiny <em>operations</em> that merge.</p>
+      <p>The trick is making concurrent operations <em>commute</em>: Operational Transformation rewrites each op against the ones it raced with, while CRDTs give every character an identity so merges are conflict-free by construction. Either way, an op log plus snapshots lets anyone reconnect and converge to the exact same text.</p>
+    </div>
+
+            <div class="tools"><span class="tlabel">&#128295; Typical tools</span><span class="tool">WebSocket</span><span class="tool">Yjs (CRDT)</span><span class="tool">ShareDB (OT)</span><span class="tool">Redis</span></div>
+
+    <h2 id="think">How to think about it &mdash; step by step</h2>
+    <div class="steps">
+      <div class="step"><h4>Pin the hard case</h4><p>Two people typing in the same spot at once must not clobber each other. <span class="why">Why:</span> this single scenario drives the design.</p></div>
+      <div class="step"><h4>Express edits as operations</h4><p>Insert/delete ops, not whole-document saves. <span class="why">Why:</span> tiny ops can be merged; full saves can't.</p></div>
+      <div class="step"><h4>Make concurrent ops commute</h4><p>Operational Transformation rewrites ops against each other, or CRDTs give each character an identity so merges are conflict-free. <span class="why">Why:</span> this is what guarantees everyone converges.</p></div>
+      <div class="step"><h4>Persist with a log + snapshots</h4><p>Append ops to a log; snapshot periodically. <span class="why">Why:</span> a reconnecting client can replay and catch up with no lost edits.</p></div>
+      <div class="step"><h4>Name the trade-off</h4><p>OT (compact, complex) vs CRDT (simpler merges, more metadata). <span class="why">Why:</span> both converge; they cost differently.</p></div>
+    </div>
+
+    <h2 id="reqs">1 &middot; Requirements</h2>
+    <p><strong>Functional:</strong> multiple people edit the same document at the same time and everyone sees a consistent result, live, with no edits lost. <strong>Non-functional:</strong> low latency (keystrokes feel instant), convergence (all replicas end identical), and offline tolerance. This is a <em>concurrency &amp; consistency</em> problem on shared mutable text.</p>
+    <h2 id="capacity">2 &middot; Capacity</h2>
+    <p>The hard case isn&#8217;t many documents &mdash; it&#8217;s many editors on <em>one</em> document sending a stream of tiny edits that must merge without conflict.</p>
+    <h2 id="api">3 &middot; Concurrency model</h2>
+    <ul class="clean">
+      <li>Edits are expressed as <strong>operations</strong> (insert char at pos, delete range), not full-document saves.</li>
+      <li>Two families solve the merge: <strong>Operational Transformation (OT)</strong> &mdash; transform an incoming op against concurrent ops so intent is preserved; or <strong>CRDTs</strong> &mdash; data types that mathematically merge without coordination.</li>
+    </ul>
+    <h2 id="data">4 &middot; Data model</h2>
+    <ul class="clean">
+      <li>doc(id, currentSnapshot, version); an append-only <strong>operation log</strong> (docId, op, baseVersion, authorId, ts).</li>
+      <li>Periodic snapshots compact the log so new joiners don&#8217;t replay everything.</li>
+    </ul>
+    <h2 id="arch">5 &middot; Architecture</h2>
+    <figure class="diagram">
+      <svg viewBox="0 0 820 210" role="img" aria-label="Several clients send edit operations over WebSocket to a document service that transforms/merges them and broadcasts to all">
+        <defs><marker id="arGD" markerWidth="9" markerHeight="9" refX="7" refY="4.5" orient="auto"><path d="M0,0 L9,4.5 L0,9 z" fill="var(--accent)"/></marker></defs>
+        <rect class="svg-box" x="8" y="20" width="92" height="44" rx="9"/><text class="svg-txt" x="54" y="47" text-anchor="middle">Editor A</text>
+        <rect class="svg-box" x="8" y="86" width="92" height="44" rx="9"/><text class="svg-txt" x="54" y="113" text-anchor="middle">Editor B</text>
+        <rect class="svg-box" x="8" y="152" width="92" height="44" rx="9"/><text class="svg-txt" x="54" y="179" text-anchor="middle">Editor C</text>
+        <rect class="svg-accent" x="300" y="70" width="170" height="66" rx="10"/><text class="svg-txt" x="385" y="98" text-anchor="middle">Document service</text><text class="svg-sub" x="385" y="116" text-anchor="middle">OT / CRDT merge</text>
+        <rect class="svg-good" x="540" y="46" width="160" height="48" rx="9"/><text class="svg-txt" x="620" y="68" text-anchor="middle">Op log</text><text class="svg-sub" x="620" y="84" text-anchor="middle">append-only</text>
+        <rect class="svg-box" x="540" y="112" width="160" height="48" rx="9"/><text class="svg-txt" x="620" y="134" text-anchor="middle">Snapshots</text><text class="svg-sub" x="620" y="150" text-anchor="middle">periodic compaction</text>
+        <g class="svg-line-acc">
+          <line x1="100" y1="42" x2="298" y2="92" marker-end="url(#arGD)"/>
+          <line x1="100" y1="108" x2="298" y2="103" marker-end="url(#arGD)"/>
+          <line x1="100" y1="174" x2="298" y2="114" marker-end="url(#arGD)"/>
+          <line x1="470" y1="96" x2="538" y2="72" marker-end="url(#arGD)"/>
+          <line x1="470" y1="110" x2="538" y2="134" marker-end="url(#arGD)"/>
+        </g>
+        <text class="svg-sub" x="200" y="200" text-anchor="middle">ops in &amp; merged ops broadcast back over WebSocket</text>
+      </svg>
+      <figcaption>Each editor streams operations over a WebSocket to the document service, which transforms/merges concurrent ops (OT or CRDT) so all clients converge to the same text, appends to the op log, and broadcasts the merged ops back to everyone. Snapshots compact the log periodically.</figcaption>
+    </figure>
+    <h2 id="hard">6 &middot; The hard part &mdash; concurrent merge</h2>
+    <ul class="clean">
+      <li><strong>The problem</strong>: if A inserts at position 3 while B deletes position 1, naive application corrupts the document &mdash; positions shift under each other.</li>
+      <li><strong>OT</strong>: a central server transforms each op against the ops it didn&#8217;t yet know about, preserving intent; compact but the transform logic is famously tricky.</li>
+      <li><strong>CRDT</strong>: give each character a unique, ordered identity so inserts/deletes commute and merge with no central coordinator &mdash; simpler reasoning, more metadata per character.</li>
+    </ul>
+    <h2 id="scale">7 &middot; Scaling &amp; failure</h2>
+    <ul class="clean">
+      <li>Shard by document; all editors of one doc share a server (or a consensus group) so ordering is simple.</li>
+      <li>Clients buffer ops offline and reconcile on reconnect; the op log + snapshot let a client rebuild state and resync without loss.</li>
+    </ul>
+    <h2 id="tradeoffs">8 &middot; Trade-offs</h2>
+    <ul class="clean">
+      <li><strong>OT</strong> (compact, server-coordinated, complex transforms) vs <strong>CRDT</strong> (decentralized, simpler merges, more metadata).</li>
+      <li>Per-document single ordering point (simple) vs fully peer-to-peer (resilient, harder).</li>
+    </ul>
+        <h2 id="subsystems">Key sub-systems</h2>
+    <ul class="clean">
+      <li><strong>Document service</strong> &mdash; per-doc ordering point.</li>
+      <li><strong>OT/CRDT engine</strong> &mdash; merges concurrent ops.</li>
+      <li><strong>WebSocket layer</strong> &mdash; low-latency op exchange.</li>
+      <li><strong>Op log</strong> &mdash; append-only history.</li>
+      <li><strong>Snapshots</strong> &mdash; periodic compaction.</li>
+    </ul>
+    <h2 id="bottlenecks">Bottlenecks &amp; what to optimize next</h2>
+    <ul class="clean">
+      <li>Concurrent edits are the core problem &mdash; OT/CRDT make ops commute.</li>
+      <li>Op log grows &mdash; snapshot periodically so new joiners don't replay everything.</li>
+    </ul>
+    <h2 id="levels">Senior &middot; Staff &middot; Principal</h2>
+    <div class="ladder">
+      <div class="lv s"><span class="tier">Senior</span><p>Builds op-based editing with OT or CRDT merge.</p></div>
+      <div class="lv t"><span class="tier">Staff</span><p>Handles convergence, reconnect/replay, and snapshotting.</p></div>
+      <div class="lv p"><span class="tier">Principal</span><p>Raises offline-first sync, access control on ranges, and scaling presence/cursors for large docs.</p></div>
+    </div>
+    <h2 id="faq">Common follow-up questions</h2>
+    <details class="qa"><summary>How do two simultaneous edits not corrupt the doc?</summary><div class="body"><p>Edits are operations that are transformed (OT) or designed to commute (CRDT) so all replicas converge to the same text.</p></div></details>
+    <details class="qa"><summary>OT vs CRDT?</summary><div class="body"><p>OT is compact but needs a central coordinator and tricky transform logic; CRDTs merge without coordination but carry more metadata per character.</p></div></details>
+    <details class="qa"><summary>How does a reconnecting client catch up?</summary><div class="body"><p>It replays ops since its last version from the op log (and a recent snapshot) to converge with no lost edits.</p></div></details>
+
+    <div class="recap"><span class="label">&#129504; Remember it</span>
+      <p>Co-editing = <span class="hook">edits as mergeable operations (OT or CRDT)</span> that converge.</p>
+      <ul>
+        <li>Represent edits as ops, not document saves.</li>
+        <li>OT (server transforms) or CRDT (commutative by design) merge concurrency.</li>
+        <li>Op log + snapshots = reconnect, replay, converge with no lost edits.</li>
+      </ul>
+    </div>
+
+    <div class="pagenav">
+      <a class="card" href="sd-search-engine.html"><span class="tag">&larr; Previous</span><h3>Search Engine</h3></a>
+      <a class="card" href="sd-web-crawler.html"><span class="tag">Next deep-dive &rarr;</span><h3>Web Crawler</h3></a>
+    </div>
+  </main>
+</div></div>
+<script src="assets/js/main.js"></script>
+</body>
+</html>

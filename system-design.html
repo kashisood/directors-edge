@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-theme="dark">
+<html lang="en" data-theme="warm">
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -53,8 +53,19 @@
   </aside>
 
   <main>
+    <div class="story"><span class="label">&#128214; The story</span>
+      <p>A design question feels scary only if you treat it as &lsquo;know the answer&rsquo;. Reframe it as a <em>walk</em> you take every time, and the fear disappears: clarify the scale, name the constraints, sketch the components, find what breaks first, and state the trade-off.</p>
+      <p>The concepts on this page &mdash; scaling, load balancing, caching, BCP, DR &mdash; are just the moves available on that walk. Scaling up is buying a bigger box; scaling out is adding more boxes behind a traffic cop; caching is not redoing expensive work; DR is two business numbers (RPO, RTO) wearing technical clothes.</p>
+      <p>Master the walk and the moves, and any prompt &mdash; familiar or not &mdash; becomes a calm, structured conversation instead of a guessing game.</p>
+    </div>
+
+      <div class="callout"><span class="label">&#11088; At Google</span><p>Google design rounds assume scale and ambiguity. Use the framework here, then think <strong>planet-scale</strong> and name trade-offs &mdash; it feeds both <strong>GCA</strong> and <strong>Role-Related Knowledge</strong>. See the <a href="google.html">Google Prep</a> page for the full picture.</p></div>
+      <div class="callout tip"><span class="label">&#129513; Phase 2 &mdash; practice on real problems</span><p>Once the concepts here click, work the <a href="system-design-cases.html">System Design II</a> page: 30 real, worked design questions (URL shortener to stock exchange) you can drill by level.</p></div>
+
 
     <!-- ===================== FRAMEWORK ===================== -->
+        <div class="tools"><span class="tlabel">&#128295; Tools in this space</span><span class="tool">NGINX</span><span class="tool">HAProxy</span><span class="tool">Redis</span><span class="tool">Apache Kafka</span><span class="tool">Cassandra</span><span class="tool">PostgreSQL</span><span class="tool">CloudFront</span><span class="tool">Docker</span><span class="tool">Kubernetes</span><span class="tool">AWS</span></div>
+
     <h2 id="framework">A 6-step framework for any design question</h2>
     <p>When asked "how would you design X," resist jumping to a solution. Walk this path out loud — it shows structured thinking, which matters more than any specific component choice.</p>
 
@@ -318,47 +329,87 @@
     <p class="no-results">No questions match your search.</p>
 
     <div data-search-group>
-      <details class="qa" data-searchable>
+      <details class="qa" data-searchable data-level="1">
         <summary>When would you scale vertically vs. horizontally?<span class="qa-badge core">Core</span></summary>
         <div class="body">
           <p>Vertical first when it's simple and sufficient — especially for relational databases that don't shard cleanly, or when we just need a quick win and aren't near the hardware ceiling. Horizontal once we need fault tolerance, are approaching that ceiling, or want growth to be a matter of adding commodity nodes rather than a re-architecture. In a typical system I'd run the stateless app tier horizontally behind a load balancer and scale the database vertically until sharding or read replicas are genuinely warranted. The trade-off I'd name is simplicity and cost vs. resilience and ceiling.</p>
         </div>
       </details>
 
-      <details class="qa" data-searchable>
+      <details class="qa" data-searchable data-level="3">
         <summary>Our database is the bottleneck under load. Walk me through your options.<span class="qa-badge deep">Deep</span></summary>
         <div class="body">
           <p>I'd go cheapest-and-safest first. (1) <strong>Measure</strong> — find the actual slow queries; often it's a missing index, not a capacity problem. (2) <strong>Cache</strong> hot reads in Redis to take pressure off the DB. (3) <strong>Read replicas</strong> to offload read traffic. (4) <strong>Scale vertically</strong> for a bigger box. (5) Only then <strong>shard / partition</strong>, because that adds real complexity. Throughout, I'd be asking whether the read/write ratio or data model is the real issue. The leadership point: I escalate complexity deliberately, and I don't shard a database to avoid adding an index.</p>
         </div>
       </details>
 
-      <details class="qa" data-searchable>
+      <details class="qa" data-searchable data-level="1">
         <summary>What's the difference between BCP and DR?<span class="qa-badge core">Core</span></summary>
         <div class="body">
           <p>Business continuity is the whole-business plan for surviving any disruption — people, offices, suppliers, and systems — so we keep serving customers. Disaster recovery is the IT subset: restoring systems and data after a major failure. DR lives inside BCP. The reason I keep them distinct is that a perfect DR plan still fails the business if nobody knows who communicates with customers or which manual workaround keeps orders flowing while systems come back. Continuity is bigger than the tech.</p>
         </div>
       </details>
 
-      <details class="qa" data-searchable>
+      <details class="qa" data-searchable data-level="1">
         <summary>Define RTO and RPO and how they drive architecture.<span class="qa-badge core">Core</span></summary>
         <div class="body">
           <p>RPO is how much data we can afford to lose, in time — it sets our backup/replication frequency. RTO is how long we can be down before restored — it sets how "hot" our standby needs to be. They're business decisions that translate directly into cost: a near-zero RPO/RTO points to active-active multi-region with continuous replication; a relaxed one points to periodic backups. I always derive the architecture from these two numbers rather than picking a fashionable DR pattern and hoping it fits.</p>
         </div>
       </details>
 
-      <details class="qa" data-searchable>
+      <details class="qa" data-searchable data-level="3">
         <summary>Design a URL shortener at a high level. (Keep it leadership-level.)<span class="qa-badge deep">Deep</span></summary>
         <div class="body">
           <p>I'd clarify scale first — reads vastly outnumber writes, so this is a read-heavy, cache-friendly problem. High level: an API to create short codes, a key-value store mapping code → long URL, a cache (or CDN) in front for the hot redirects, and a load-balanced stateless app tier. Codes can be generated from a counter encoded in base-62 or a hash with collision checks. Because it's read-heavy and the data is small and immutable, caching gives us huge leverage and the DB choice is almost secondary. I'd flag analytics (click counts) as an async, eventually-consistent write so it never slows the redirect. I'm keeping this at the component-and-trade-off level rather than coding it — that's the altitude I operate at.</p>
         </div>
       </details>
 
-      <details class="qa" data-searchable>
+      <details class="qa" data-searchable data-level="2">
         <summary>The site is slow but CPU and memory look fine. How do you lead the investigation?<span class="qa-badge trap">Trap</span></summary>
         <div class="body">
           <p>"Looks fine" on averages often hides a tail problem, so first I'd look at p95/p99 latency, not averages, and at the dependencies — a slow downstream call, database lock contention, an exhausted connection pool, or a noisy neighbor. I'd have the team trace a slow request end-to-end rather than guess. As a leader my job is to prevent thrashing: insist on data before changes, one hypothesis at a time, and a clear owner for the incident. The trap here is throwing more hardware at a problem that's actually a blocked thread pool or a missing index — that wastes money and hides the real cause.</p>
         </div>
       </details>
+      <details class="qa" data-searchable data-level="1">
+        <summary>What is a CDN and when does it help?<span class="qa-badge core">Core</span></summary>
+        <div class="body">
+          <p>A CDN (content delivery network) caches content at edge locations physically close to users, so a request is served from a nearby node instead of crossing the world to your origin. It cuts latency, absorbs huge traffic spikes, and offloads your servers. It&rsquo;s a big win for static assets (images, JS, CSS, video) and cacheable API responses; less so for highly personalized or rapidly changing data. As a leader I treat &lsquo;can the CDN serve this?&rsquo; as one of the cheapest performance and resilience levers we have.</p>
+        </div>
+      </details>
+      <details class="qa" data-searchable data-level="2">
+        <summary>Read replicas vs sharding &mdash; when do you reach for each?<span class="qa-badge core">Core</span></summary>
+        <div class="body">
+          <p>Read replicas first: they&rsquo;re simpler and solve the common case where reads vastly outnumber writes &mdash; you copy the database and route reads to replicas, keeping writes on the primary. The cost is replication lag (eventual consistency on replicas). Sharding &mdash; splitting data across multiple databases by a key &mdash; is for when a single primary can&rsquo;t handle the write volume or data size. I avoid sharding until necessary because it adds real complexity: cross-shard queries, rebalancing, and choosing a good shard key. The escalation is: cache &rarr; read replicas &rarr; vertical scale &rarr; shard.</p>
+        </div>
+      </details>
+      <details class="qa" data-searchable data-level="2">
+        <summary>Sketch a rate limiter at a high level.<span class="qa-badge deep">Deep</span></summary>
+        <div class="body">
+          <p>I&rsquo;d clarify the goal (protect a service / enforce fair use / prevent abuse) and the scope (per user, per IP, per API key). A common approach is a token-bucket: each client has a bucket that refills at a fixed rate; each request consumes a token, and empty means reject (HTTP 429). For a distributed system the counters live in a shared fast store like Redis so all instances agree. Trade-offs to name: accuracy vs performance, where to enforce (gateway vs service), and graceful behavior &mdash; clear 429s with Retry-After rather than silent drops. I&rsquo;d keep it at this component level rather than coding the algorithm.</p>
+        </div>
+      </details>
+      <details class="qa" data-searchable data-level="3">
+        <summary>Design a notification system for ~50M users at a high level.<span class="qa-badge deep">Deep</span></summary>
+        <div class="body">
+          <p>I&rsquo;d clarify channels (push, email, SMS, in-app), volume, and latency expectations &mdash; most notifications tolerate seconds of delay, which makes this an asynchronous, queue-based problem. High level: producers publish events to a message queue; a fleet of stateless workers consume, apply user preferences and rate limits, render templates, and hand off to channel-specific providers (APNs/FCM, an email provider, an SMS gateway). I&rsquo;d add deduplication and idempotency, retries with backoff and a dead-letter queue, and per-user preference and quiet-hours handling. Analytics (delivered/opened) is a separate eventually-consistent stream. The leadership points are decoupling via queues, designing for provider failure, and respecting the user&rsquo;s attention.</p>
+        </div>
+      </details>
+      <details class="qa" data-searchable data-level="3">
+        <summary>Traffic spikes and your cache expires all at once, hammering the database. What&rsquo;s happening and how do you prevent it?<span class="qa-badge trap">Trap</span></summary>
+        <div class="body">
+          <p>That&rsquo;s a cache stampede (or thundering herd): many simultaneous misses all hit the database at once when a popular key expires. Mitigations I&rsquo;d have the team apply: stagger expirations with jitter so keys don&rsquo;t die together; use a lock or &lsquo;single-flight&rsquo; so only one request recomputes a value while others wait; serve slightly stale data while refreshing in the background; and pre-warm hot keys. The broader lesson is designing the cache for failure modes, not just the happy path &mdash; and load-testing those modes before they find us in production.</p>
+        </div>
+      </details>
+    </div>
+
+    
+    <div class="recap"><span class="label">&#129504; Remember it</span>
+      <p>Design isn&#8217;t recall, it&#8217;s a <span class="hook">repeatable walk: clarify &rarr; constrain &rarr; sketch &rarr; find the break &rarr; trade-off</span>.</p>
+      <ul>
+        <li>Always ask scale and &lsquo;what are we optimizing for&rsquo; before drawing.</li>
+        <li>Scale DB up first, app tier out; cache the hot path.</li>
+        <li>DR = RPO (data loss) + RTO (downtime), set by the business.</li>
+      </ul>
     </div>
 
     <div class="pagenav">

@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="warm">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Design File Storage &amp; Sync (Dropbox / Drive) — Director's Edge</title>
+<meta name="description" content="System design deep-dive: Design File Storage &amp; Sync (Dropbox / Drive)." />
+<link rel="preconnect" href="https://fonts.googleapis.com" /><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="assets/css/styles.css" />
+</head>
+<body data-theme="warm">
+<section class="hero"><span class="eyebrow">System design deep-dive</span><h1>Design File Storage &amp; Sync (Dropbox / Drive)</h1><p class="lead">A deep-dive into syncing large files across devices: content-hashed chunks, a metadata service for the file tree and versions, and delta sync.</p></section>
+<div class="wrap section"><div class="page-layout">
+  <aside class="toc"><strong>On this page</strong>
+    <a href="#think">How to think (step by step)</a>
+    <a href="#reqs">1 · Requirements</a>
+    <a href="#arch">2 · Architecture</a>
+    <a href="#hard">3 · The hard parts</a>
+    <a href="#trade">4 · Trade-offs</a>
+    <a href="#subsystems">Key sub-systems</a>
+    <a href="#bottlenecks">Bottlenecks</a>
+    <a href="#levels">Senior / Staff / Principal</a>
+    <a href="#faq">Follow-up Q&amp;A</a>
+  </aside>
+  <main>
+    <div class="callout"><span class="label">&#11088; At Google</span><p>Drive it top-down: requirements &rarr; scale &rarr; design &rarr; bottleneck &rarr; trade-offs. Back to <a href="system-design-cases.html">System Design II</a>.</p></div>
+    <div class="story"><span class="label">&#128214; The story</span>
+      <p>Syncing files looks like &lsquo;copy bytes&rsquo; until the files are huge, edited offline, and shared. The win is never moving more bytes than you must &mdash; only the parts that changed.</p>
+      <p>So files are split into content-hashed chunks in object storage, a metadata service tracks the tree and versions, and clients sync deltas and get change notifications. Identical chunks are stored once (dedup).</p>
+    </div>
+            <div class="tools"><span class="tlabel">&#128295; Typical tools</span><span class="tool">Amazon S3</span><span class="tool">gRPC</span><span class="tool">RocksDB</span></div>
+
+    <h2 id="think">How to think about it &mdash; step by step</h2>
+    <div class="steps">
+      <div class="step"><h4>Aim to move fewer bytes</h4><p>Only sync what changed, not whole files. <span class="why">Why:</span> editing one line of a big file shouldn't re-upload it all.</p></div>
+      <div class="step"><h4>Chunk and hash files</h4><p>Split files into content-hashed chunks in object storage. <span class="why">Why:</span> identical chunks store once (dedup), and you sync only new chunks.</p></div>
+      <div class="step"><h4>Separate metadata</h4><p>A metadata service tracks the file tree and versions. <span class="why">Why:</span> this is the consistency-sensitive hot part; keep it apart from blobs.</p></div>
+      <div class="step"><h4>Handle conflicts</h4><p>Concurrent edits become versioned/conflicted copies or merge. <span class="why">Why:</span> offline editing means clashes are inevitable.</p></div>
+      <div class="step"><h4>Name the trade-off</h4><p>Chunk dedup saves bandwidth but adds metadata complexity. <span class="why">Why:</span> worth it for large files.</p></div>
+    </div>
+
+    <h2 id="reqs">1 &middot; Requirements</h2>
+<p><strong>Functional:</strong> upload/download files, sync across devices, version history, sharing, offline edits. <strong>Non-functional:</strong> efficient large-file sync, durability, conflict handling.</p>    <h2 id="arch">2 &middot; Architecture</h2>
+    <figure class="diagram">
+<svg viewBox="0 0 780 180" role="img" aria-label="File sync architecture"><defs><marker id="m" markerWidth="9" markerHeight="9" refX="7" refY="4.5" orient="auto"><path d="M0,0 L9,4.5 L0,9 z" fill="var(--accent)"/></marker></defs><rect class="svg-box" x="8" y="66" width="90" height="50" rx="9"/><text class="svg-txt" x="53" y="89" text-anchor="middle">Clients</text><text class="svg-sub" x="53" y="106" text-anchor="middle">delta sync</text><rect class="svg-accent" x="120" y="66" width="140" height="50" rx="9"/><text class="svg-txt" x="190" y="89" text-anchor="middle">Sync service</text><text class="svg-sub" x="190" y="106" text-anchor="middle">diff, notify</text><rect class="svg-accent2" x="280" y="12" width="160" height="44" rx="9"/><text class="svg-txt" x="360" y="32" text-anchor="middle">Metadata svc</text><text class="svg-sub" x="360" y="49" text-anchor="middle">tree, versions</text><rect class="svg-box" x="280" y="104" width="160" height="44" rx="9"/><text class="svg-txt" x="360" y="124" text-anchor="middle">Chunk store</text><text class="svg-sub" x="360" y="141" text-anchor="middle">content-hashed</text><rect class="svg-good" x="470" y="104" width="160" height="44" rx="9"/><text class="svg-txt" x="550" y="124" text-anchor="middle">Object storage</text><text class="svg-sub" x="550" y="141" text-anchor="middle">blobs (S3)</text><rect class="svg-box" x="470" y="12" width="160" height="44" rx="9"/><text class="svg-txt" x="550" y="32" text-anchor="middle">Notify channel</text><text class="svg-sub" x="550" y="49" text-anchor="middle">changes</text><line class="svg-line-acc" x1="98" y1="91" x2="118" y2="91" marker-end="url(#m)"/><line class="svg-line-acc" x1="260" y1="80" x2="278" y2="34" marker-end="url(#m)"/><line class="svg-line-acc" x1="260" y1="94" x2="278" y2="126" marker-end="url(#m)"/><line class="svg-line-acc" x1="440" y1="126" x2="468" y2="126" marker-end="url(#m)"/></svg>
+      <figcaption>Files are split into content-hashed chunks stored in object storage (identical chunks dedup automatically). A metadata service tracks the file tree, versions, and which chunks make each file. Clients compute diffs and sync only changed chunks; a notification channel pushes changes to other devices.</figcaption>
+    </figure>
+    <h2 id="hard">3 &middot; The hard parts</h2>
+    <ul class="clean">
+      <li><strong>Delta sync</strong>: hash chunks; upload only chunks the server doesn&#8217;t already have &mdash; huge bandwidth savings on small edits to big files.</li>
+      <li><strong>Conflicts</strong>: concurrent edits on two devices &rarr; keep both versions (conflicted copy) or merge; versions make it recoverable.</li>
+      <li><strong>Metadata at scale</strong>: the file tree + version history is the hot, consistency-sensitive part; shard by user/account.</li>
+    </ul>
+    <h2 id="trade">4 &middot; Trade-offs</h2>
+    <ul class="clean">
+      <li>Chunk dedup (bandwidth/storage savings) vs metadata complexity.</li>
+      <li>Strong consistency on metadata vs supporting offline edits + later merge.</li>
+    </ul>
+        <h2 id="subsystems">Key sub-systems</h2>
+    <ul class="clean">
+      <li><strong>Sync client</strong> &mdash; computes diffs, watches changes.</li>
+      <li><strong>Metadata service</strong> &mdash; file tree + versions.</li>
+      <li><strong>Chunk store</strong> &mdash; content-hashed blobs.</li>
+      <li><strong>Object storage</strong> &mdash; the chunks.</li>
+      <li><strong>Notification channel</strong> &mdash; pushes changes to devices.</li>
+    </ul>
+    <h2 id="bottlenecks">Bottlenecks &amp; what to optimize next</h2>
+    <ul class="clean">
+      <li>Re-uploading whole files is the bottleneck &mdash; sync only changed chunks (delta sync).</li>
+      <li>Metadata is the consistency-sensitive hot part &mdash; shard by account and keep it strongly consistent.</li>
+    </ul>
+    <h2 id="levels">Senior &middot; Staff &middot; Principal</h2>
+    <div class="ladder">
+      <div class="lv s"><span class="tier">Senior</span><p>Builds chunked storage, dedup, and delta sync.</p></div>
+      <div class="lv t"><span class="tier">Staff</span><p>Handles conflict resolution, versioning, and large-file performance.</p></div>
+      <div class="lv p"><span class="tier">Principal</span><p>Raises real-time collaboration, end-to-end encryption, and cross-region metadata consistency.</p></div>
+    </div>
+    <h2 id="faq">Common follow-up questions</h2>
+    <details class="qa"><summary>How do you sync a 1GB file after a small edit?</summary><div class="body"><p>Split files into content-hashed chunks; upload only the chunks that changed &mdash; usually a tiny fraction.</p></div></details>
+    <details class="qa"><summary>How do you handle two devices editing offline?</summary><div class="body"><p>Versioning plus conflict resolution &mdash; keep both as a 'conflicted copy' or merge; nothing is silently lost.</p></div></details>
+    <details class="qa"><summary>Why separate metadata from blobs?</summary><div class="body"><p>Metadata (the tree, versions) needs strong consistency and fast queries; blobs just need cheap, scalable storage.</p></div></details>
+
+    <div class="recap"><span class="label">&#129504; Remember it</span>
+      <p>File sync = <span class="hook">content-hashed chunks + metadata service + delta sync</span>.</p>
+      <ul>
+        <li>Chunk + dedup; sync only changed chunks.</li>
+        <li>Metadata service owns tree + versions (consistency-sensitive).</li>
+        <li>Conflicts &rarr; versioned copies / merge.</li>
+      </ul>
+    </div>
+
+    <div class="pagenav">
+      <a class="card" href="sd-email.html"><span class="tag">&larr; Previous</span><h3>Email Service</h3></a>
+      <a class="card" href="sd-food-delivery.html"><span class="tag">Next &rarr;</span><h3>Food Delivery</h3></a>
+    </div>
+  </main>
+</div></div>
+<script src="assets/js/main.js"></script>
+</body>
+</html>

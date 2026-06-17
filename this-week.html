@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="warm">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>This Week — Director's Edge</title>
+<meta name="description" content="A live, auto-updating digest of the week's hottest cybersecurity and AI stories, fetched in your browser and ranked by popularity." />
+<link rel="preconnect" href="https://fonts.googleapis.com" /><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="assets/css/styles.css" />
+</head>
+<body data-theme="warm">
+
+<section class="hero">
+  <span class="eyebrow">&#128240; Live &middot; updates on every visit</span>
+  <h1>This Week in Security &amp; AI</h1>
+  <p class="lead">The only dynamic page on the site. It fetches the week&#8217;s hottest cybersecurity and AI stories <strong>live in your browser</strong> &mdash; ranked by popularity &mdash; so you get the gist <em>on this page</em> &mdash; a short summary each &mdash; and only follow the link if you want the full story.</p>
+  <div class="news-bar">
+    <button class="btn primary" id="news-refresh">&#8635; Refresh</button>
+    <span class="news-status" id="news-status"><span class="dot"></span>Loading the latest&hellip;</span>
+  </div>
+</section>
+
+<div class="section">
+  <div class="news-cols">
+    <div class="news-col">
+      <h2>&#128272; Cybersecurity &mdash; hot this week</h2>
+      <ul class="news-list" id="cyber-list"></ul>
+    </div>
+    <div class="news-col">
+      <h2>&#129302; AI &mdash; hot this week</h2>
+      <ul class="news-list" id="ai-list"></ul>
+    </div>
+  </div>
+
+  <div class="callout" style="margin-top:24px"><span class="label">How this works</span><p>By default this shows a <strong>digest with summaries</strong> from <code>data/news.json</code> (refreshed weekly by a GitHub Action that pulls RSS feeds &mdash; each item carries a 1&ndash;2 line summary). Click <strong>Refresh</strong> to pull <strong>live headlines</strong> from the public Hacker News search API (titles ranked by points, last 7 days). Offline, a curated set of briefings with summaries is shown.</p></div>
+  <p class="news-status" style="margin-top:8px">Tip: titles link to the source article; <em>discuss</em> opens the Hacker News thread.</p>
+</div>
+
+<script src="assets/js/main.js"></script>
+<script>
+(function () {
+  "use strict";
+  var WEEK = Math.floor(Date.now() / 1000) - 7 * 86400;
+  function esc(s){ return String(s).replace(/[&<>"]/g, function(c){ return {"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;"}[c]; }); }
+  function dom(u){ try { return new URL(u).hostname.replace(/^www\./, ""); } catch(e){ return "news.ycombinator.com"; } }
+  function ago(ts){ var s = Date.now()/1000 - ts; var d = Math.floor(s/86400); if (d>=1) return d+"d ago"; var h = Math.floor(s/3600); if (h>=1) return h+"h ago"; return Math.max(1,Math.floor(s/60))+"m ago"; }
+  function item(h){
+    var url = h.url || ("https://news.ycombinator.com/item?id=" + h.objectID);
+    var disc = "https://news.ycombinator.com/item?id=" + h.objectID;
+    return '<li class="news-item"><a class="t" href="'+url+'" target="_blank" rel="noopener">'+esc(h.title||"(untitled)")+'</a>'+
+           '<div class="meta"><span class="pts">&#9650; '+(h.points||0)+'</span><span>'+esc(dom(url))+'</span><span>'+ago(h.created_at_i)+'</span>'+
+           '<a href="'+disc+'" target="_blank" rel="noopener">discuss</a></div></li>';
+  }
+  var FALLBACK_CYBER = [
+    {title:"Ransomware-as-a-Service keeps attacks cheap & frequent", url:"https://www.cisa.gov/stopransomware", summary:"Crews rent ready-made ransomware to affiliates; defend with offline backups, segmentation, MFA, and fast detection.", source:"CISA"},
+    {title:"Zero-days are exploited within days — patch fast", url:"https://www.cisa.gov/known-exploited-vulnerabilities-catalog", summary:"CISA's KEV catalog flags vulnerabilities actively used in the wild; patch those first.", source:"CISA KEV"},
+    {title:"Prompt injection is the top risk for AI apps", url:"https://owasp.org/www-project-top-10-for-large-language-model-applications/", summary:"Untrusted text can hijack an LLM agent's instructions; treat all model input as untrusted and constrain tool access.", source:"OWASP"}
+  ];
+  var FALLBACK_AI = [
+    {title:"RAG grounds AI answers in your own data", url:"https://www.anthropic.com/news", summary:"Retrieve your current docs and feed them to the model so answers stay accurate, current, and sourced.", source:"Anthropic"},
+    {title:"AI agents move from chatting to doing", url:"https://www.anthropic.com/news", summary:"An LLM with tools runs a reason-act-observe loop, planning and executing multi-step work under human direction.", source:"Anthropic"},
+    {title:"MCP is the standard plug for AI tools", url:"https://modelcontextprotocol.io", summary:"An open protocol connecting models to tools and data uniformly — 'USB-C for AI'.", source:"MCP"}
+  ];
+  function fallbackHtml(arr){ return arr.map(function(h){ var s=h.summary?'<p style="margin:5px 0 0;font-size:.9rem;color:var(--text-muted);line-height:1.5">'+esc(h.summary)+'</p>':''; return '<li class="news-item"><a class="t" href="'+h.url+'" target="_blank" rel="noopener">'+esc(h.title)+'</a><div class="meta"><span>'+esc(h.source||"briefing")+'</span></div>'+s+'</li>'; }).join(""); }
+
+  function setStatus(text, off){
+    var s = document.getElementById("news-status");
+    if (!s) return;
+    s.className = "news-status" + (off ? " off" : "");
+    s.innerHTML = '<span class="dot"></span>' + text;
+  }
+  function load(query, elId, fb){
+    var el = document.getElementById(elId);
+    if (!el) return Promise.resolve(false);
+    el.innerHTML = '<li class="news-skel"></li><li class="news-skel"></li><li class="news-skel"></li>';
+    if (typeof fetch === "undefined") { el.innerHTML = fallbackHtml(fb); return Promise.resolve(false); }
+    var api = "https://hn.algolia.com/api/v1/search?tags=story&hitsPerPage=60&numericFilters=created_at_i%3E" + WEEK + "&query=" + encodeURIComponent(query);
+    return fetch(api).then(function(r){ if(!r.ok) throw new Error("http"); return r.json(); }).then(function(d){
+      var hits = (d.hits || []).filter(function(h){ return h.title && h.points >= 5; });
+      hits.sort(function(a,b){ return (b.points||0) - (a.points||0); });
+      hits = hits.slice(0, 8);
+      el.innerHTML = hits.length ? hits.map(item).join("") : fallbackHtml(fb);
+      return true;
+    }).catch(function(){ el.innerHTML = fallbackHtml(fb); return false; });
+  }
+  function renderRich(el, items){
+    if (!el) return;
+    if (!items || !items.length) { el.innerHTML = '<li class="news-item news-status">Nothing in the digest yet.</li>'; return; }
+    el.innerHTML = items.slice(0,12).map(function(it){
+      var s = it.summary ? '<p style="margin:5px 0 0;font-size:.9rem;color:var(--text-muted);line-height:1.5">'+esc(it.summary)+'</p>' : '';
+      return '<li class="news-item"><a class="t" href="'+it.link+'" target="_blank" rel="noopener">'+esc(it.title)+'</a>'+
+             '<div class="meta"><span>'+esc(it.source||'')+'</span><span>'+esc(it.date||'')+'</span></div>'+s+'</li>';
+    }).join("");
+  }
+  function tryDigest(){
+    if (typeof fetch === "undefined") return Promise.reject();
+    return fetch("data/news.json", {cache:"no-store"}).then(function(r){ if(!r.ok) throw 0; return r.json(); });
+  }
+  function refresh(){
+    setStatus("Fetching the latest&hellip;");
+    Promise.all([
+      load("security OR ransomware OR breach OR vulnerability", "cyber-list", FALLBACK_CYBER),
+      load("AI OR LLM OR \"AI agent\" OR Anthropic OR OpenAI", "ai-list", FALLBACK_AI)
+    ]).then(function(res){
+      var ok = res[0] && res[1];
+      var now = new Date().toLocaleString();
+      setStatus(ok ? ("Live &middot; updated " + now) : "Showing curated fallback (live feed unavailable)", !ok);
+    });
+  }
+  document.addEventListener("DOMContentLoaded", function(){
+    var b = document.getElementById("news-refresh");
+    if (b) b.addEventListener("click", refresh);  // Refresh = live Hacker News feed
+    setStatus("Loading the weekly digest&hellip;");
+    tryDigest().then(function(d){
+      if (!d || !(d.cyber || d.ai)) throw 0;
+      renderRich(document.getElementById("cyber-list"), d.cyber || []);
+      renderRich(document.getElementById("ai-list"), d.ai || []);
+      var when = (d.updated && d.updated !== "seed") ? (" &middot; updated " + new Date(d.updated).toLocaleDateString()) : "";
+      setStatus("Weekly digest with summaries" + when + " &mdash; click Refresh for the live feed");
+    }).catch(function(){ refresh(); });  // no digest yet -> live Hacker News
+  });
+})();
+</script>
+</body>
+</html>

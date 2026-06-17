@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-theme="dark">
+<html lang="en" data-theme="warm">
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -50,6 +50,16 @@
   </aside>
 
   <main>
+    <div class="story"><span class="label">&#128214; The story</span>
+      <p>Security goes wrong when it&#8217;s a gate someone runs into at the end. The story of a strong security culture is the opposite: make the <em>secure path the easy path</em>, so doing the right thing is the path of least resistance.</p>
+      <p>It rests on three ideas you can say in your sleep &mdash; least privilege (give the minimum), defense in depth (never trust one control), and secure-by-default (catch it early, in CI and design).</p>
+      <p>Then the specifics fall into place: identity first (authenticate) then permissions (authorize); secrets never in code; and when something breaks, contain calmly and fix the system that allowed it.</p>
+    </div>
+
+      <div class="callout"><span class="label">&#11088; At Google</span><p>Security depth is part of your <strong>Role-Related Knowledge</strong>; pair it with Google&#8217;s user-first, do-the-right-thing framing. See the <a href="google.html">Google Prep</a> page for the full picture.</p></div>
+
+
+        <div class="tools"><span class="tlabel">&#128295; Security tooling</span><span class="tool">HashiCorp Vault</span><span class="tool">Okta</span><span class="tool">AWS Secrets Manager</span><span class="tool">Snyk</span><span class="tool">Splunk (SIEM)</span><span class="tool">Burp Suite</span></div>
 
     <h2 id="mindset">The security mindset</h2>
     <p>Three principles do most of the heavy lifting. Reach for them by name and you sound like a leader who's lived through an incident or two.</p>
@@ -110,6 +120,20 @@
     </div>
 
     <!-- ===================== TOKENS ===================== -->
+        <div class="example" data-ex-added><span class="label">&#128205; Real example &mdash; a JWT, decoded</span>
+      <p>A <strong>JWT</strong> (JSON Web Token) is just three Base64URL chunks joined by dots: <code>header.payload.signature</code>. Here is a real one:</p>
+      <pre class="code">eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJ1c3JfNDgyMSIsInJvbGUiOiJhZG1pbiIsImlhdCI6MTczODMxNjgwMCwiZXhwIjoxNzM4MzIwNDAwfQ.3pErEaB7Qe1n_kZ2yq8VtJ0r9sXc1d2e3f4g5h6i7k</pre>
+      <p>Split on the dots and Base64-decode the first two parts &mdash; they are plain JSON, <em>not encrypted</em>:</p>
+      <pre class="code"><span class="c">// header</span>
+{ "alg": "HS256", "typ": "JWT" }
+
+<span class="c">// payload (the &ldquo;claims&rdquo;)</span>
+{ "sub": "usr_4821", "role": "admin", "iat": 1738316800, "exp": 1738320400 }
+
+<span class="c">// signature = HMAC-SHA256( base64url(header) + "." + base64url(payload), SECRET )</span></pre>
+      <p><strong>What this teaches:</strong> anyone can read the header and payload (paste them into jwt.io), so <em>never put secrets in a JWT</em>. The <strong>signature</strong> is what matters &mdash; the server recomputes it with its secret to confirm nobody tampered with the claims. Always check <code>exp</code> (expiry), keep lifetimes short, and remember you can&#8217;t easily revoke a JWT before it expires (hence refresh tokens).</p>
+    </div>
+
     <h2 id="tokens">Sessions, tokens &amp; OAuth</h2>
     <p>Know the vocabulary well enough to govern decisions, even if the team implements the details.</p>
     <ul class="clean">
@@ -147,6 +171,33 @@
     </div>
 
     <!-- ===================== PRACTICES ===================== -->
+    <div class="example"><span class="label">&#128205; Real example &mdash; secrets &amp; logs</span>
+      <div class="good-bad">
+        <div class="gb no"><h4>&#10007; Secret hard-coded</h4>
+          <p style="font-family:var(--mono);font-size:.82rem;margin:0">DB_PASSWORD = "S3cr3t!" <span style="opacity:.7">// in code &mdash; now in git forever</span></p></div>
+        <div class="gb ok"><h4>&#10003; Injected at runtime</h4>
+          <p style="font-family:var(--mono);font-size:.82rem;margin:0">DB_PASSWORD = vault.read("db/prod").password</p></div>
+      </div>
+      <p style="margin:8px 0 0">Same for logs: never log tokens, passwords, API keys, PII or card data. Log <code>user_id=4821 action=login ok</code>, not the password or the full request body. Enforce with a redaction filter + secret-scanning in CI &mdash; the most common leak is a developer logging the whole payload.</p>
+    </div>
+
+        <div class="example" data-ex-added><span class="label">&#128205; Real example &mdash; OAuth2 Authorization Code + PKCE</span>
+      <p>&ldquo;Sign in with Google&rdquo; uses the OAuth2 <strong>authorization-code</strong> flow. PKCE (&ldquo;pixie&rdquo;) hardens it for mobile/SPA apps that can&#8217;t keep a secret. The app first invents a random <code>code_verifier</code> and sends only its hash:</p>
+      <pre class="code">1. app makes  code_verifier = random  ;  code_challenge = base64url(SHA256(verifier))
+
+2. browser &rarr; accounts.google.com/o/oauth2/v2/auth
+      ?client_id=...&amp;redirect_uri=...&amp;scope=email
+      &amp;code_challenge=XYZ&amp;code_challenge_method=S256
+
+3. user logs in + consents  &rarr;  Google redirects back:
+      https://app/callback?code=AUTH_CODE_ONE_TIME
+
+4. app &rarr; POST /token   { code=AUTH_CODE, code_verifier=ORIGINAL_RANDOM }
+      Google checks  SHA256(verifier) == code_challenge   &rarr;  issues tokens:
+      { access_token, refresh_token, id_token (a JWT), expires_in: 3600 }</pre>
+      <p><strong>What this teaches:</strong> the password is only ever entered at Google &mdash; your app never sees it, it just receives a short-lived, scoped <code>access_token</code>. The one-time <code>code</code> travels through the browser redirect, but it&#8217;s useless to an attacker without the matching <code>code_verifier</code> that never left the app &mdash; that&#8217;s what PKCE protects against (an intercepted code). Always request the narrowest <code>scope</code>, keep access tokens short-lived, and store the <code>refresh_token</code> securely to get new ones without re-prompting.</p>
+    </div>
+
     <h2 id="practices">Everyday practices a director champions</h2>
     <ul class="clean">
       <li><strong>Encrypt in transit and at rest</strong> — TLS everywhere, encrypted storage by default.</li>
@@ -168,40 +219,80 @@
     <p class="no-results">No questions match your search.</p>
 
     <div data-search-group>
-      <details class="qa" data-searchable>
+      <details class="qa" data-searchable data-level="1">
         <summary>What's the difference between authentication and authorization?<span class="qa-badge core">Core</span></summary>
         <div class="body">
           <p>Authentication answers "who are you?" — proving identity through something like a password, MFA, or SSO. Authorization answers "what are you allowed to do?" — checking permissions once identity is established. Authentication always comes first. A simple analogy: authentication is showing your ID to get into the building; authorization is whether your badge opens a particular door. Underpinning both is least privilege — grant the minimum access required.</p>
         </div>
       </details>
 
-      <details class="qa" data-searchable>
+      <details class="qa" data-searchable data-level="1">
         <summary>How does your team manage secrets and API keys?<span class="qa-badge core">Core</span></summary>
         <div class="body">
           <p>The non-negotiable is that secrets never live in source control — once a key is in Git history it's compromised and must be rotated. We keep secrets in a managed store like Vault or a cloud secrets manager, inject them at runtime rather than baking them into images, scope every key to least privilege, and rotate on a schedule plus immediately on any suspected exposure. I also put secret-scanning in CI so an accidental commit is blocked before merge. The principle is to make the secure path the path of least resistance so people don't work around it.</p>
         </div>
       </details>
 
-      <details class="qa" data-searchable>
+      <details class="qa" data-searchable data-level="2">
         <summary>A developer accidentally committed an API key to a public repo. What now?<span class="qa-badge trap">Trap</span></summary>
         <div class="body">
           <p>Treat the key as compromised the moment it's pushed — deleting the commit doesn't help, because it's in history and likely already scraped. So: rotate/revoke the key immediately, check logs for any unauthorized use, and assess blast radius based on what that key could access. Then the systemic fix: add secret-scanning to CI and pre-commit hooks so it can't happen again, and run a blameless review — the goal is fixing the system that allowed it, not punishing the person, or people will hide the next mistake. Calm, fast containment plus a process fix is the director's signature here.</p>
         </div>
       </details>
 
-      <details class="qa" data-searchable>
+      <details class="qa" data-searchable data-level="3">
         <summary>Is OAuth authentication or authorization?<span class="qa-badge deep">Deep</span></summary>
         <div class="body">
           <p>OAuth 2.0 is fundamentally an authorization/delegation framework — it lets one application act on a user's behalf at another service without sharing the password, via scoped access tokens. It is <em>not</em> an authentication protocol by itself. The authentication layer is OpenID Connect (OIDC), which sits on top of OAuth and standardizes proving who the user is. People commonly conflate them because "Sign in with Google" uses both. As a leader I don't implement the flows, but I do expect the team to use OIDC for identity and OAuth for delegated access, and to know the difference.</p>
         </div>
       </details>
 
-      <details class="qa" data-searchable>
+      <details class="qa" data-searchable data-level="3">
         <summary>How do you build security into the development process without slowing teams down?<span class="qa-badge deep">Deep</span></summary>
         <div class="body">
           <p>By making security a paved road rather than a gate. I shift left — automated checks in CI for dependencies, secrets, and common vulnerabilities — so issues surface in minutes, not in a review weeks later. I give teams secure defaults and reusable components so the easy path is the safe one, threat-model the high-risk features at design time, and reserve human security review for genuinely high-stakes changes. The mindset is guardrails, not gates: security enables the team to move fast safely instead of standing between them and production.</p>
         </div>
       </details>
+      <details class="qa" data-searchable data-level="1">
+        <summary>What&rsquo;s the difference between encryption in transit and at rest?<span class="qa-badge core">Core</span></summary>
+        <div class="body">
+          <p>Encryption in transit protects data while it moves across a network &mdash; that&rsquo;s TLS/HTTPS on every connection, so an attacker who intercepts traffic sees gibberish. Encryption at rest protects data while it&rsquo;s stored &mdash; on disks, in databases and backups &mdash; so a stolen drive or backup is useless without the keys. You want both, by default, plus sound key management. As a leader my baseline expectation is TLS everywhere and encrypted storage as a default setting, not a special request &mdash; and that we manage and rotate the keys properly, since encryption is only as strong as key handling.</p>
+        </div>
+      </details>
+      <details class="qa" data-searchable data-level="2">
+        <summary>What does least privilege look like in practice?<span class="qa-badge core">Core</span></summary>
+        <div class="body">
+          <p>It means every user, service, and credential gets exactly the access it needs and nothing more. In practice: scoped API keys (read-only if it only reads), narrow IAM roles instead of broad admin, time-bound and just-in-time access for sensitive operations, and regular access reviews to remove permissions people no longer need. It limits the blast radius &mdash; when something is compromised, and eventually something will be, the damage is contained. I treat &lsquo;does this need that much access?&rsquo; as a routine review question, and I&rsquo;m especially wary of long-lived, all-powerful credentials.</p>
+        </div>
+      </details>
+      <details class="qa" data-searchable data-level="2">
+        <summary>How do you lead a security incident as the manager?<span class="qa-badge deep">Deep</span></summary>
+        <div class="body">
+          <p>My job in an incident is to bring calm, structure, and speed, not to debug personally. I make sure there&rsquo;s a clear incident commander, contain first (revoke credentials, isolate affected systems) before chasing root cause, and assess the blast radius from logs. I handle communication &mdash; keeping stakeholders and, where appropriate, customers honestly informed &mdash; so engineers can focus. Afterward I drive a blameless post-mortem that fixes the system that allowed the incident, not the individual, because blame just makes the next problem get hidden. The reflexes are: contain fast, communicate honestly, learn systemically.</p>
+        </div>
+      </details>
+      <details class="qa" data-searchable data-level="3">
+        <summary>How do you handle compliance like SOC 2 or GDPR without killing velocity?<span class="qa-badge deep">Deep</span></summary>
+        <div class="body">
+          <p>I treat compliance as something we build into the platform rather than bolt on at audit time. That means automated evidence and controls (access reviews, change management, encryption, logging) baked into our normal workflows, and secure-by-default templates so teams meet requirements just by using the paved road. I bring security and legal in early on significant features so we design for privacy and data handling up front instead of reworking later. Framed well, compliance is largely the same hygiene that good engineering already wants &mdash; the trick is automating the evidence so it doesn&rsquo;t become a manual tax on every team.</p>
+        </div>
+      </details>
+      <details class="qa" data-searchable data-level="3">
+        <summary>Security wants to block a launch over a medium-risk finding. The business wants to ship. What do you do?<span class="qa-badge trap">Trap</span></summary>
+        <div class="body">
+          <p>I&rsquo;d make it a clear-eyed risk decision rather than a turf fight. I&rsquo;d get the actual risk articulated &mdash; exploitability, blast radius, what data is exposed &mdash; and the cost of delay, then put both in front of the people accountable for the trade-off. Often there&rsquo;s a middle path: ship to a limited cohort, add a compensating control or monitoring, and commit to a dated fix. If it&rsquo;s genuinely high impact I&rsquo;ll back security and hold the launch; if it&rsquo;s truly low and reversible, we may accept the risk explicitly with an owner and a deadline. What I won&rsquo;t do is let it be decided by whoever pushes hardest &mdash; it&rsquo;s a documented, owned decision.</p>
+        </div>
+      </details>
+    </div>
+
+    
+    <div class="recap"><span class="label">&#129504; Remember it</span>
+      <p>Make the <span class="hook">secure path the easy path</span> &mdash; guardrails, not gates.</p>
+      <ul>
+        <li>AuthN (who) comes before AuthZ (what); least privilege underneath both.</li>
+        <li>Secrets live in a manager, never in source control.</li>
+        <li>Incidents: contain fast, communicate honestly, fix blamelessly.</li>
+      </ul>
     </div>
 
     <div class="pagenav">

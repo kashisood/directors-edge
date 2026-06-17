@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-theme="dark">
+<html lang="en" data-theme="warm">
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -49,6 +49,14 @@
   </aside>
 
   <main>
+    <div class="story"><span class="label">&#128214; The story</span>
+      <p>A leader who&#8217;s fallen out of touch gets quietly managed by their team&#8217;s opinions. The story here is staying current enough to <em>ask the sharp question</em> &mdash; not to write the code, but to steer.</p>
+      <p>The plot has three threads: the platform you run on (Java&#8217;s LTS cadence, virtual threads), the framework that shapes your apps (Spring Boot&#8217;s direction), and the wave reshaping how software is built (agentic AI, RAG, MCP).</p>
+      <p>Your stance is the same for all three: adopt for value, not novelty; stay current, not bleeding-edge; and make upgrades a routine capability rather than a scary project.</p>
+    </div>
+
+      <div class="callout"><span class="label">&#11088; At Google</span><p>This is <strong>Role-Related Knowledge</strong>: enough current technical judgment to earn trust and ask sharp questions in a Google loop. See the <a href="google.html">Google Prep</a> page for the full picture.</p></div>
+
 
     <div class="callout">
       <span class="label">Currency note</span>
@@ -152,40 +160,80 @@
     <p class="no-results">No questions match your search.</p>
 
     <div data-search-group>
-      <details class="qa" data-searchable>
+      <details class="qa" data-searchable data-level="1">
         <summary>How do you decide when to upgrade your Java / framework version?<span class="qa-badge core">Core</span></summary>
         <div class="body">
           <p>I run a policy, not a case-by-case scramble: standardize on LTS releases, stay within one LTS of current, and treat upgrades as routine maintenance rather than heroic projects. The enabler is test coverage — if upgrading is scary, the real problem is that we can't verify behavior, so I'd invest there first. I time the actual move to avoid clashing with major delivery, often staging it service-by-service. Falling badly behind is a security, performance, and hiring liability, so "later" is itself a decision with a cost I make visible.</p>
         </div>
       </details>
 
-      <details class="qa" data-searchable>
+      <details class="qa" data-searchable data-level="3">
         <summary>What's the most significant recent change in Java and why does it matter?<span class="qa-badge deep">Deep</span></summary>
         <div class="body">
           <p>Virtual threads, delivered in Java 21 and built on since. For I/O-bound services — which is most enterprise software — they let you reach very high concurrency using simple, blocking-style code instead of a complex reactive stack. That matters to me as a leader because it lowers the maintenance bar for the whole team: readable code that any engineer can support, without sacrificing throughput. It's a rare case where the simpler option also scales better, so I'd actively steer new services toward it.</p>
         </div>
       </details>
 
-      <details class="qa" data-searchable>
+      <details class="qa" data-searchable data-level="2">
         <summary>Your team wants to fine-tune an LLM. How do you respond?<span class="qa-badge trap">Trap</span></summary>
         <div class="body">
           <p>I'd start with "what problem are we solving, and have we tried RAG first?" For most use cases — answering from our docs, staying current — retrieval-augmented generation is cheaper, keeps answers sourced and up to date, and avoids retraining every time data changes. Fine-tuning earns its place when we need a specific style, format, or a narrow task at low latency/cost, possibly with a small model. I'd also ask about evals and data governance before either path. The trap is treating fine-tuning as the default sophisticated choice when it's often the expensive, brittle one.</p>
         </div>
       </details>
 
-      <details class="qa" data-searchable>
+      <details class="qa" data-searchable data-level="3">
         <summary>How would you roll out AI coding assistants across your org?<span class="qa-badge deep">Deep</span></summary>
         <div class="body">
           <p>Capture the leverage, manage the risk. I'd enable assistants and agentic workflows broadly, paired with non-negotiable guardrails: code review stays mandatory, AI-generated code is tested like any other, and no secrets or proprietary data go into tools we don't control. I'd measure impact with real signals (lead time, change failure rate) rather than anecdotes, share patterns that work, and retrain the team's habits around directing and verifying AI rather than hand-writing everything. The goal is a paved road that makes the safe, productive path the easy one.</p>
         </div>
       </details>
 
-      <details class="qa" data-searchable>
+      <details class="qa" data-searchable data-level="1">
         <summary>Explain RAG to a product manager.<span class="qa-badge core">Core</span></summary>
         <div class="body">
           <p>"A plain language model only knows what it was trained on, and it can confidently make things up. RAG fixes that: when a question comes in, we first search our own up-to-date documents, then hand the most relevant ones to the model as context so its answer is grounded in our real data and can cite sources. Practically, it means the assistant can answer about our latest policies without retraining, and we can trace where an answer came from — which is exactly what we need for trust and compliance."</p>
         </div>
       </details>
+      <details class="qa" data-searchable data-level="1">
+        <summary>What are containers and why do they matter to delivery?<span class="qa-badge core">Core</span></summary>
+        <div class="body">
+          <p>A container packages an application with its dependencies into a single portable unit that runs the same on a laptop, CI, and production &mdash; eliminating &lsquo;works on my machine&rsquo;. They start fast and are lightweight compared to full VMs because they share the host kernel. For delivery they matter because they make environments reproducible and deployments consistent, which is the foundation of reliable CI/CD and easy horizontal scaling. As a leader I care less about the tool and more that containers give us repeatable, boring deploys.</p>
+        </div>
+      </details>
+      <details class="qa" data-searchable data-level="2">
+        <summary>What is observability, and how is it different from monitoring?<span class="qa-badge core">Core</span></summary>
+        <div class="body">
+          <p>Monitoring tells you whether known things are healthy &mdash; dashboards and alerts for metrics you predicted mattering. Observability is the ability to ask new questions about your system from its outputs &mdash; metrics, logs, and traces together &mdash; so you can debug problems you didn&rsquo;t anticipate. The practical difference: monitoring answers &lsquo;is it down?&rsquo;; observability answers &lsquo;why is this specific request slow for this cohort?&rsquo;. I push teams to instrument for observability from day one, because you can&rsquo;t operate at scale what you can&rsquo;t see, and the three pillars (metrics, logs, traces) are how we shorten time-to-restore.</p>
+        </div>
+      </details>
+      <details class="qa" data-searchable data-level="2">
+        <summary>Monolith vs microservices &mdash; what&rsquo;s your stance as a leader?<span class="qa-badge deep">Deep</span></summary>
+        <div class="body">
+          <p>My default for a new or small product is a well-structured modular monolith: it&rsquo;s simpler to build, test, deploy, and reason about, and it scales further than people think. Microservices earn their place when you need independent scaling, independent deployment, or clear team ownership boundaries at larger org size &mdash; they trade operational and consistency complexity for autonomy. I let services be pulled out by real boundaries (team and scaling needs) rather than imposed up front. The anti-pattern I guard against is a distributed monolith: microservices so coupled you get all the complexity and none of the autonomy.</p>
+        </div>
+      </details>
+      <details class="qa" data-searchable data-level="3">
+        <summary>How do you evaluate adopting a new technology across teams?<span class="qa-badge deep">Deep</span></summary>
+        <div class="body">
+          <p>I run it as a deliberate decision, not enthusiasm. First, the problem and whether existing tools already solve it. Then I&rsquo;d pilot it on a low-risk project with a small team, define success criteria up front, and assess the full picture: maturity, security, hiring and learning curve, community and support, total cost of ownership, and exit cost if it fails. If it proves out, I&rsquo;d create a paved road &mdash; templates, docs, and guardrails &mdash; so adoption is safe and consistent rather than every team improvising. Adopt for value, not novelty, and make the reversible-vs-one-way-door nature of the choice explicit.</p>
+        </div>
+      </details>
+      <details class="qa" data-searchable data-level="3">
+        <summary>A team wants to rewrite the core platform in a trendier language. How do you respond?<span class="qa-badge trap">Trap</span></summary>
+        <div class="body">
+          <p>Big rewrites are one of the riskiest things a team can do, so I&rsquo;d slow down and ask what problem the rewrite solves that we can&rsquo;t solve incrementally. Rewrites routinely overrun, freeze feature delivery, and reintroduce bugs the old system already fixed. If the current stack is genuinely blocking us (hiring, performance, security), I&rsquo;d favor the strangler-fig pattern &mdash; replace piece by piece behind stable interfaces while the system keeps running &mdash; over a big-bang rewrite. Often the real issue is code quality or architecture, not the language, and that&rsquo;s cheaper to fix directly. I&rsquo;d make the business cost of a rewrite explicit before anyone commits.</p>
+        </div>
+      </details>
+    </div>
+
+    
+    <div class="recap"><span class="label">&#129504; Remember it</span>
+      <p>Stay current enough to <span class="hook">ask the sharp question and steer</span> &mdash; not to write the code.</p>
+      <ul>
+        <li>Standardize on LTS; stay within one version of current.</li>
+        <li>Virtual threads = simple high concurrency (Java 21+).</li>
+        <li>Default to RAG over fine-tuning; demand evals before AI ships.</li>
+      </ul>
     </div>
 
     <div class="pagenav">

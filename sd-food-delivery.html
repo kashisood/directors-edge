@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="warm">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Design a Food-Delivery Platform (DoorDash) — Director's Edge</title>
+<meta name="description" content="System design deep-dive: Design a Food-Delivery Platform (DoorDash)." />
+<link rel="preconnect" href="https://fonts.googleapis.com" /><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="assets/css/styles.css" />
+</head>
+<body data-theme="warm">
+<section class="hero"><span class="eyebrow">System design deep-dive</span><h1>Design a Food-Delivery Platform (DoorDash)</h1><p class="lead">A deep-dive into a three-sided marketplace: order lifecycle, geospatial courier matching, and ETAs combining prep and travel time.</p></section>
+<div class="wrap section"><div class="page-layout">
+  <aside class="toc"><strong>On this page</strong>
+    <a href="#think">How to think (step by step)</a>
+    <a href="#reqs">1 · Requirements</a>
+    <a href="#arch">2 · Architecture</a>
+    <a href="#hard">3 · The hard parts</a>
+    <a href="#trade">4 · Trade-offs</a>
+    <a href="#subsystems">Key sub-systems</a>
+    <a href="#bottlenecks">Bottlenecks</a>
+    <a href="#levels">Senior / Staff / Principal</a>
+    <a href="#faq">Follow-up Q&amp;A</a>
+  </aside>
+  <main>
+    <div class="callout"><span class="label">&#11088; At Google</span><p>Drive it top-down: requirements &rarr; scale &rarr; design &rarr; bottleneck &rarr; trade-offs. Back to <a href="system-design-cases.html">System Design II</a>.</p></div>
+    <div class="story"><span class="label">&#128214; The story</span>
+      <p>Food delivery juggles three impatient parties &mdash; the diner, the restaurant, and the courier &mdash; in real time. It borrows ride-hailing&#8217;s geospatial matching and adds a marketplace and an order lifecycle.</p>
+      <p>So an order service drives a state machine, a courier-matching service queries a geo index for nearby drivers, and ETAs blend kitchen prep time with travel time.</p>
+    </div>
+            <div class="tools"><span class="tlabel">&#128295; Typical tools</span><span class="tool">Apache Kafka</span><span class="tool">Redis</span><span class="tool">PostgreSQL</span></div>
+
+    <h2 id="think">How to think about it &mdash; step by step</h2>
+    <div class="steps">
+      <div class="step"><h4>Count the parties</h4><p>Diner, restaurant, courier &mdash; all in real time. <span class="why">Why:</span> coordination is the theme.</p></div>
+      <div class="step"><h4>Drive it with an order state machine</h4><p>placed &rarr; accepted &rarr; preparing &rarr; picked-up &rarr; delivered, via events. <span class="why">Why:</span> a clear lifecycle keeps three parties in sync.</p></div>
+      <div class="step"><h4>Reuse geo matching</h4><p>Courier assignment is the ride-hailing problem. <span class="why">Why:</span> connect to what you know instead of inventing.</p></div>
+      <div class="step"><h4>Get ETAs right</h4><p>Combine kitchen prep time with travel time. <span class="why">Why:</span> both are moving estimates that affect the promise to the diner.</p></div>
+      <div class="step"><h4>Name the trade-off</h4><p>Assign one order per courier (fast) vs batch nearby orders (efficient, slower). <span class="why">Why:</span> a real business lever.</p></div>
+    </div>
+
+    <h2 id="reqs">1 &middot; Requirements</h2>
+<p><strong>Functional:</strong> browse menus, place orders, match a courier, track delivery, pay. <strong>Non-functional:</strong> real-time matching &amp; tracking, accurate ETAs, high availability.</p>    <h2 id="arch">2 &middot; Architecture</h2>
+    <figure class="diagram">
+<svg viewBox="0 0 800 190" role="img" aria-label="Food delivery architecture"><defs><marker id="m" markerWidth="9" markerHeight="9" refX="7" refY="4.5" orient="auto"><path d="M0,0 L9,4.5 L0,9 z" fill="var(--accent)"/></marker></defs><rect class="svg-box" x="8" y="70" width="84" height="52" rx="9"/><text class="svg-txt" x="50" y="94" text-anchor="middle">Apps</text><text class="svg-sub" x="50" y="111" text-anchor="middle">3 sides</text><rect class="svg-accent" x="112" y="70" width="120" height="52" rx="9"/><text class="svg-txt" x="172" y="94" text-anchor="middle">Order svc</text><text class="svg-sub" x="172" y="111" text-anchor="middle">lifecycle</text><rect class="svg-box" x="252" y="10" width="160" height="44" rx="9"/><text class="svg-txt" x="332" y="30" text-anchor="middle">Restaurant svc</text><text class="svg-sub" x="332" y="47" text-anchor="middle">menu, availability</text><rect class="svg-accent2" x="252" y="118" width="170" height="44" rx="9"/><text class="svg-txt" x="337" y="138" text-anchor="middle">Courier matching</text><text class="svg-sub" x="337" y="155" text-anchor="middle">geo index</text><rect class="svg-good" x="440" y="10" width="150" height="44" rx="9"/><text class="svg-txt" x="515" y="30" text-anchor="middle">Payments</text><text class="svg-sub" x="515" y="47" text-anchor="middle">idempotent</text><rect class="svg-box" x="440" y="118" width="150" height="44" rx="9"/><text class="svg-txt" x="515" y="138" text-anchor="middle">ETA / maps</text><text class="svg-sub" x="515" y="155" text-anchor="middle">prep + travel</text><line class="svg-line-acc" x1="92" y1="96" x2="110" y2="96" marker-end="url(#m)"/><line class="svg-line-acc" x1="232" y1="84" x2="250" y2="32" marker-end="url(#m)"/><line class="svg-line-acc" x1="232" y1="108" x2="250" y2="140" marker-end="url(#m)"/><line class="svg-line-acc" x1="412" y1="32" x2="438" y2="32" marker-end="url(#m)"/><line class="svg-line-acc" x1="422" y1="140" x2="438" y2="140" marker-end="url(#m)"/></svg>
+      <figcaption>An order service runs the order lifecycle (placed&rarr;accepted&rarr;preparing&rarr;picked-up&rarr;delivered) via events. A courier-matching service (geospatial index, like Uber) assigns nearby couriers; restaurant availability, payments, and ETA/maps are separate services.</figcaption>
+    </figure>
+    <h2 id="hard">3 &middot; The hard parts</h2>
+    <ul class="clean">
+      <li><strong>Three-sided coordination</strong>: an event-driven order state machine keeps diner, restaurant, and courier in sync.</li>
+      <li><strong>Courier matching</strong>: geospatial index (geohash/QuadTree) finds nearby couriers, ranked by ETA; lock on offer to avoid double-assignment.</li>
+      <li><strong>ETA</strong>: combine kitchen prep time with travel time; both are estimates that update.</li>
+      <li><strong>Batching</strong>: assign one courier multiple nearby orders to improve efficiency.</li>
+    </ul>
+    <h2 id="trade">4 &middot; Trade-offs</h2>
+    <ul class="clean">
+      <li>Assignment for speed (one order per courier) vs efficiency (batched deliveries, slower).</li>
+      <li>Availability consistency vs latency.</li>
+    </ul>
+        <h2 id="subsystems">Key sub-systems</h2>
+    <ul class="clean">
+      <li><strong>Order service</strong> &mdash; lifecycle state machine.</li>
+      <li><strong>Restaurant service</strong> &mdash; menu + availability.</li>
+      <li><strong>Courier matching</strong> &mdash; geospatial, like Uber.</li>
+      <li><strong>ETA service</strong> &mdash; prep + travel time.</li>
+      <li><strong>Payments</strong> &mdash; idempotent.</li>
+    </ul>
+    <h2 id="bottlenecks">Bottlenecks &amp; what to optimize next</h2>
+    <ul class="clean">
+      <li>Coordinating three parties in real time &mdash; an event-driven state machine keeps them in sync.</li>
+      <li>Courier efficiency &mdash; batching nearby orders trades speed for utilization.</li>
+    </ul>
+    <h2 id="levels">Senior &middot; Staff &middot; Principal</h2>
+    <div class="ladder">
+      <div class="lv s"><span class="tier">Senior</span><p>Builds the order lifecycle and geo courier matching.</p></div>
+      <div class="lv t"><span class="tier">Staff</span><p>Handles three-sided coordination, accurate ETAs, and batching.</p></div>
+      <div class="lv p"><span class="tier">Principal</span><p>Raises demand forecasting, dynamic dispatch optimization, and multi-city marketplace economics.</p></div>
+    </div>
+    <h2 id="faq">Common follow-up questions</h2>
+    <details class="qa"><summary>How is this different from ride-hailing?</summary><div class="body"><p>Same geospatial matching for couriers, plus a marketplace (restaurants/menus) and a longer order lifecycle (prep + pickup + delivery).</p></div></details>
+    <details class="qa"><summary>How do you estimate delivery time?</summary><div class="body"><p>Combine kitchen prep time (per restaurant, time-of-day) with courier travel time; both are live estimates.</p></div></details>
+    <details class="qa"><summary>How do you improve courier efficiency?</summary><div class="body"><p>Batch nearby orders to one courier &mdash; better utilization at the cost of slightly slower individual deliveries.</p></div></details>
+
+    <div class="recap"><span class="label">&#129504; Remember it</span>
+      <p>Food delivery = <span class="hook">order state machine + geo courier matching + ETA</span>.</p>
+      <ul>
+        <li>Event-driven lifecycle coordinates 3 parties.</li>
+        <li>Geospatial matching like ride-hailing; lock on offer.</li>
+        <li>ETA = prep + travel; batch for efficiency.</li>
+      </ul>
+    </div>
+
+    <div class="pagenav">
+      <a class="card" href="sd-file-sync.html"><span class="tag">&larr; Previous</span><h3>File Sync</h3></a>
+      <a class="card" href="sd-ad-analytics.html"><span class="tag">Next &rarr;</span><h3>Ad Analytics</h3></a>
+    </div>
+  </main>
+</div></div>
+<script src="assets/js/main.js"></script>
+</body>
+</html>

@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="warm">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>AI Tools &amp; Modes (incl. Claude) — Director's Edge</title>
+<meta name="description" content="The same model, many surfaces. A map of the common modes of AI tools &mdash; chat, coding agent, API, browser, spreadsheet, desktop automation &mdash; and, using Claude as the worked example, who uses each and for what." />
+<link rel="preconnect" href="https://fonts.googleapis.com" /><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="assets/css/styles.css" />
+</head>
+<body data-theme="warm">
+<section class="hero"><span class="eyebrow">Insight &middot; AI tooling</span><h1>AI Tools &amp; Modes (incl. Claude)</h1><p class="lead">The same model, many surfaces. A map of the common modes of AI tools &mdash; chat, coding agent, API, browser, spreadsheet, desktop automation &mdash; and, using Claude as the worked example, who uses each and for what.</p></section>
+<div class="wrap section"><div class="page-layout">
+  <aside class="toc"><strong>On this page</strong>
+    <a href="#modes">The common modes</a>
+    <a href="#claude">Claude&#8217;s surfaces</a>
+    <a href="#models">Which model for what</a>
+    <a href="#pick">How to pick</a>
+  </aside>
+  <main>
+    <div class="story"><span class="label">&#128214; The story</span>
+      <p>The same AI model shows up in many &lsquo;surfaces&rsquo; &mdash; a chat box, an IDE, a terminal, an API, a browser extension, a spreadsheet. Each surface is tuned for a different job and a different kind of user, and picking the right one matters as much as picking the model.</p>
+      <p>This page maps the common <em>modes</em> of AI tools, then uses Claude as a concrete example of how one provider's surfaces line up against who uses them and for what.</p>
+    </div>
+    <h2 id="modes">The common modes of an AI tool</h2>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Mode</th><th>What it is</th><th>Mainly for</th></tr></thead>
+      <tbody>
+        <tr><td>Chat assistant</td><td>A conversation UI (web/desktop/mobile)</td><td>Everyone &mdash; Q&amp;A, writing, analysis</td></tr>
+        <tr><td>Coding agent (IDE/terminal)</td><td>AI that edits code, runs tests, opens PRs</td><td>Developers</td></tr>
+        <tr><td>API / platform</td><td>Programmatic access to the model</td><td>Developers building products</td></tr>
+        <tr><td>Browser agent</td><td>AI that navigates and acts on web pages</td><td>Power users, automation</td></tr>
+        <tr><td>Spreadsheet agent</td><td>AI inside a spreadsheet</td><td>Analysts, finance, ops</td></tr>
+        <tr><td>Desktop automation</td><td>AI that works with your files &amp; tasks</td><td>Non-technical knowledge workers</td></tr>
+        <tr><td>Plugins / connectors</td><td>Add tools &amp; data to an assistant (often via MCP)</td><td>Both &mdash; extend any of the above</td></tr>
+      </tbody></table></div>
+    <h2 id="claude">Claude&#8217;s surfaces &mdash; a concrete example</h2>
+<p>Anthropic&#8217;s Claude is available through several products. They share the same underlying models but are tuned for different users and jobs:</p>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Surface</th><th>What it&#8217;s for</th><th>Who uses it</th></tr></thead>
+      <tbody>
+        <tr><td><strong>Claude apps</strong> (web, desktop, mobile)</td><td>General chat assistant &mdash; questions, writing, analysis, brainstorming</td><td>Everyone, technical or not</td></tr>
+        <tr><td><strong>Cowork</strong> (desktop, research preview)</td><td>Automating file &amp; task work on your computer &mdash; documents, spreadsheets, multi-step jobs; supports plugins</td><td>Non-developers / business users</td></tr>
+        <tr><td><strong>Claude Code</strong> (CLI)</td><td>Agentic coding from the terminal &mdash; reads/edits your repo, runs commands, opens PRs; supports plugins</td><td>Developers</td></tr>
+        <tr><td><strong>Claude Developer Platform / API</strong> (api.anthropic.com)</td><td>Build Claude into your own apps and agents programmatically</td><td>Developers / product teams</td></tr>
+        <tr><td><strong>Claude in Chrome</strong> (beta)</td><td>A browsing agent that navigates and acts on web pages</td><td>Power users, automation (beta)</td></tr>
+        <tr><td><strong>Claude in Excel</strong> (beta)</td><td>A spreadsheet agent inside Excel</td><td>Analysts, finance (beta)</td></tr>
+      </tbody></table></div>
+    <h2 id="models">Which model for what</h2>
+<p>Across those surfaces you typically choose a model by the speed/intelligence/cost trade-off:</p>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Model</th><th>Best for</th></tr></thead>
+      <tbody>
+        <tr><td><strong>Claude Opus</strong> (e.g. Opus 4.8)</td><td>The hardest reasoning, deep coding, complex agentic work</td></tr>
+        <tr><td><strong>Claude Sonnet</strong> (e.g. Sonnet 4.6)</td><td>The balanced everyday workhorse &mdash; strong and fast</td></tr>
+        <tr><td><strong>Claude Haiku</strong> (e.g. Haiku 4.5)</td><td>Speed and low cost for high-volume, simpler tasks</td></tr>
+      </tbody></table></div>
+    <h2 id="pick">How to pick &mdash; by person &amp; job</h2>
+    <ul class="clean">
+      <li><strong>Non-technical knowledge worker</strong> &mdash; start in the <em>Claude app</em> for chat; use <em>Cowork</em> to automate file/task work on your computer.</li>
+      <li><strong>Analyst / finance</strong> &mdash; the <em>chat app</em> for analysis; <em>Claude in Excel</em> for spreadsheet work.</li>
+      <li><strong>Developer</strong> &mdash; <em>Claude Code</em> in the terminal for hands-on coding; the <em>API/Platform</em> to embed Claude in your own product.</li>
+      <li><strong>Builder of AI products</strong> &mdash; the <em>Developer Platform</em> plus <em>MCP</em> connectors and evals (see <a href="ai-insights.html">AI Insights</a>).</li>
+      <li><strong>Anyone extending a tool</strong> &mdash; <em>plugins/connectors</em> (often MCP) add your data and tools to the assistant.</li>
+    </ul>
+    <div class="callout warn"><span class="label">Keep it current</span><p>AI products, model names, and availability (beta vs GA) change frequently. Treat this as a snapshot and verify the latest on the provider&#8217;s official docs (for Claude: <code>docs.claude.com</code> and <code>claude.com</code>).</p></div>
+    <div class="recap"><span class="label">&#129504; Remember it</span>
+      <p>Match the <span class="hook">surface to the person and the job</span>, not just the model.</p>
+      <ul>
+        <li>Chat app = everyone; Cowork = non-devs automating files/tasks.</li>
+        <li>Claude Code = developers in the terminal; API/Platform = building products.</li>
+        <li>Pick Opus (hardest), Sonnet (balanced), Haiku (fast/cheap) by the task.</li>
+      </ul>
+    </div>
+
+    <div class="pagenav">
+      <a class="card" href="ai-insights.html"><span class="tag">&larr; Previous</span><h3>AI Insights</h3></a>
+      <a class="card" href="index.html"><span class="tag">Back to &rarr;</span><h3>Home</h3></a>
+    </div>
+  </main>
+</div></div>
+<script src="assets/js/main.js"></script>
+</body>
+</html>

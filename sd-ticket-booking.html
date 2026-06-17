@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="warm">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Design Ticket Booking (Ticketmaster) — Director's Edge</title>
+<meta name="description" content="System design deep-dive: Design Ticket Booking (Ticketmaster) — requirements, capacity, API, data model, architecture diagram, scaling, failure, trade-offs." />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="assets/css/styles.css" />
+</head>
+<body data-theme="warm">
+<section class="hero">
+  <span class="eyebrow">System design deep-dive</span>
+  <h1>Design Ticket Booking (Ticketmaster)</h1>
+  <p class="lead">A deep-dive into selling limited seats under massive contention with zero double-booking: holds with TTL, optimistic locking, and a virtual waiting room.</p>
+</section>
+<div class="wrap section">
+<div class="page-layout">
+  <aside class="toc"><strong>On this page</strong>
+    <a href="#think">How to think (step by step)</a>
+    <a href="#reqs">1 · Requirements</a>
+    <a href="#capacity">2 · Capacity</a>
+    <a href="#api">3 · API</a>
+    <a href="#data">4 · Data model</a>
+    <a href="#arch">5 · Architecture</a>
+    <a href="#hard">6 · The hard part</a>
+    <a href="#scale">7 · Scaling</a>
+    <a href="#tradeoffs">8 · Trade-offs</a>
+    <a href="#subsystems">Key sub-systems</a>
+    <a href="#bottlenecks">Bottlenecks</a>
+    <a href="#levels">Senior / Staff / Principal</a>
+    <a href="#faq">Follow-up Q&amp;A</a>
+  </aside>
+  <main>
+    <div class="callout"><span class="label">&#11088; At Google</span><p>Drive it top-down: requirements &rarr; scale &rarr; design &rarr; bottleneck &rarr; trade-offs, narrating assumptions. Back to <a href="system-design-cases.html">System Design II</a>.</p></div>
+    <div class="story"><span class="label">&#128214; The story</span>
+      <p>A ticket sale is a thundering herd fighting over a tiny pool of seats, and the unforgivable bug is selling the same seat twice. So the design optimizes for <em>correctness under contention</em>, not raw speed.</p>
+      <p>Two ideas carry it: a virtual <em>waiting room</em> that throttles the stampede into a steady stream, and an atomic <em>hold-with-TTL</em> on each seat in a strongly-consistent store so exactly one buyer can claim it.</p>
+    </div>
+
+            <div class="tools"><span class="tlabel">&#128295; Typical tools</span><span class="tool">Redis</span><span class="tool">PostgreSQL</span><span class="tool">Apache Kafka</span></div>
+
+    <h2 id="think">How to think about it &mdash; step by step</h2>
+    <div class="steps">
+      <div class="step"><h4>Name the unforgivable bug</h4><p>Selling the same seat twice. <span class="why">Why:</span> correctness, not speed, drives this design.</p></div>
+      <div class="step"><h4>Tame the stampede</h4><p>A virtual waiting room admits users at a controlled rate. <span class="why">Why:</span> turns a chaotic spike into a steady stream the backend can handle.</p></div>
+      <div class="step"><h4>Claim seats atomically</h4><p>Flip a seat free&rarr;held with a conditional update (optimistic lock); only one wins. <span class="why">Why:</span> this is what actually prevents double-booking.</p></div>
+      <div class="step"><h4>Hold, then sell</h4><p>A hold has a TTL; after payment it becomes sold, else it auto-releases. <span class="why">Why:</span> abandoned carts must free their seats.</p></div>
+      <div class="step"><h4>Be strict only where needed</h4><p>Strong consistency on the seat lock; the rest stays highly available. <span class="why">Why:</span> don't pay consistency costs everywhere.</p></div>
+    </div>
+
+    <h2 id="reqs">1 &middot; Requirements</h2>
+    <p><strong>Functional:</strong> browse events, see available seats, book and pay for specific seats. <strong>Non-functional:</strong> absolutely <strong>no double-booking</strong> of a seat, survive enormous demand spikes (a hot show sells out in seconds), and stay fair. This is a <em>contention + consistency</em> problem more than a throughput one.</p>
+    <h2 id="capacity">2 &middot; Capacity</h2>
+    <p>Normal load is light, but a flash sale can bring millions of users in the same minute fighting over thousands of seats &mdash; a massive read/write spike concentrated on a tiny hot dataset.</p>
+    <h2 id="api">3 &middot; API</h2>
+    <ul class="clean">
+      <li><code>GET /events/{id}/seats</code> &rarr; seat map with availability.</li>
+      <li><code>POST /holds</code> &rarr; reserve seats for a few minutes (returns a holdId + expiry).</li>
+      <li><code>POST /bookings</code> with holdId + payment (idempotent) &rarr; confirm.</li>
+    </ul>
+    <h2 id="data">4 &middot; Data model</h2>
+    <ul class="clean">
+      <li><code>seat(eventId, seatId, state {free|held|sold}, holdId, holdExpiry, version)</code> &mdash; the <code>version</code> column enables optimistic locking.</li>
+      <li>booking(id, holdId, userId, seatIds, paymentRef, ts).</li>
+    </ul>
+    <h2 id="arch">5 &middot; Architecture</h2>
+    <figure class="diagram">
+      <svg viewBox="0 0 840 200" role="img" aria-label="A waiting-room queue throttles traffic into the booking service, which holds seats with TTL in a strongly consistent inventory store before payment">
+        <defs><marker id="arTK" markerWidth="9" markerHeight="9" refX="7" refY="4.5" orient="auto"><path d="M0,0 L9,4.5 L0,9 z" fill="var(--accent)"/></marker></defs>
+        <rect class="svg-box" x="8" y="72" width="84" height="52" rx="9"/><text class="svg-txt" x="50" y="102" text-anchor="middle">Clients</text>
+        <rect class="svg-accent2" x="110" y="72" width="140" height="52" rx="9"/><text class="svg-txt" x="180" y="94" text-anchor="middle">Waiting room</text><text class="svg-sub" x="180" y="111" text-anchor="middle">queue / token</text>
+        <rect class="svg-accent" x="270" y="72" width="140" height="52" rx="9"/><text class="svg-txt" x="340" y="94" text-anchor="middle">Booking svc</text><text class="svg-sub" x="340" y="111" text-anchor="middle">hold + TTL</text>
+        <rect class="svg-good" x="430" y="40" width="170" height="52" rx="9"/><text class="svg-txt" x="515" y="62" text-anchor="middle">Seat inventory</text><text class="svg-sub" x="515" y="79" text-anchor="middle">strongly consistent</text>
+        <rect class="svg-box" x="430" y="108" width="170" height="48" rx="9"/><text class="svg-txt" x="515" y="130" text-anchor="middle">Payment</text><text class="svg-sub" x="515" y="146" text-anchor="middle">idempotent</text>
+        <g class="svg-line-acc">
+          <line x1="92" y1="98" x2="108" y2="98" marker-end="url(#arTK)"/>
+          <line x1="250" y1="98" x2="268" y2="98" marker-end="url(#arTK)"/>
+          <line x1="410" y1="90" x2="428" y2="66" marker-end="url(#arTK)"/>
+          <line x1="410" y1="106" x2="428" y2="130" marker-end="url(#arTK)"/>
+        </g>
+        <text class="svg-sub" x="180" y="150" text-anchor="middle">throttles the spike</text>
+      </svg>
+      <figcaption>A virtual <strong>waiting room</strong> admits users at a controlled rate so the backend never sees the full stampede. The Booking service places a <strong>hold</strong> (with a short TTL) on seats in a strongly-consistent inventory store using optimistic locking; only after payment does the seat flip to <em>sold</em>. Expired holds auto-release.</figcaption>
+    </figure>
+    <h2 id="hard">6 &middot; The hard part &mdash; no double-booking under a stampede</h2>
+    <ul class="clean">
+      <li><strong>Atomic seat claim</strong>: flipping <code>free &rarr; held</code> uses a conditional/optimistic update (&ldquo;set held WHERE state=free AND version=N&rdquo;); only one request wins, the rest get told the seat&#8217;s gone.</li>
+      <li><strong>Holds with TTL</strong>: a seat is held while the user pays; if they abandon, the hold expires and the seat returns to the pool.</li>
+      <li><strong>Waiting room</strong>: a queue/token system caps how many users hit the booking path at once, turning a chaotic spike into a steady stream.</li>
+    </ul>
+    <h2 id="scale">7 &middot; Scaling &amp; failure</h2>
+    <ul class="clean">
+      <li>The hot data is small (one event&#8217;s seats) &mdash; keep it in a fast, strongly-consistent store and shard by event.</li>
+      <li>On crash, holds simply expire; idempotent payment prevents double-charge on retry.</li>
+    </ul>
+    <h2 id="tradeoffs">8 &middot; Trade-offs</h2>
+    <ul class="clean">
+      <li><strong>Consistency over availability</strong> for the seat claim &mdash; the one place you must be strict; the rest of the app stays highly available.</li>
+      <li>Waiting room adds user wait but protects correctness and the system.</li>
+    </ul>
+        <h2 id="subsystems">Key sub-systems</h2>
+    <ul class="clean">
+      <li><strong>Waiting room</strong> &mdash; queue/token throttles the spike.</li>
+      <li><strong>Booking service</strong> &mdash; holds + confirmation.</li>
+      <li><strong>Seat inventory</strong> &mdash; strongly consistent, optimistic locking.</li>
+      <li><strong>Payment</strong> &mdash; idempotent.</li>
+      <li><strong>Hold expiry</strong> &mdash; TTL releases abandoned seats.</li>
+    </ul>
+    <h2 id="bottlenecks">Bottlenecks &amp; what to optimize next</h2>
+    <ul class="clean">
+      <li>Contention on hot seats is the bottleneck &mdash; atomic conditional updates pick one winner.</li>
+      <li>Flash-sale spike &mdash; the waiting room caps concurrency into the booking path.</li>
+    </ul>
+    <h2 id="levels">Senior &middot; Staff &middot; Principal</h2>
+    <div class="ladder">
+      <div class="lv s"><span class="tier">Senior</span><p>Builds holds-with-TTL and optimistic seat locking.</p></div>
+      <div class="lv t"><span class="tier">Staff</span><p>Handles the waiting room, idempotent payment, and consistency only where needed.</p></div>
+      <div class="lv p"><span class="tier">Principal</span><p>Raises fairness/anti-bot in queues, dynamic pricing, and multi-region inventory consistency.</p></div>
+    </div>
+    <h2 id="faq">Common follow-up questions</h2>
+    <details class="qa"><summary>How do you prevent double-booking?</summary><div class="body"><p>Flip a seat free&rarr;held with a conditional update (optimistic lock on a version); only one request wins under contention.</p></div></details>
+    <details class="qa"><summary>How do you survive a flash sale?</summary><div class="body"><p>A virtual waiting room admits users at a controlled rate, turning a stampede into a steady stream the backend can handle.</p></div></details>
+    <details class="qa"><summary>What happens if a user abandons checkout?</summary><div class="body"><p>The hold has a TTL and auto-releases the seat back to the pool.</p></div></details>
+
+    <div class="recap"><span class="label">&#129504; Remember it</span>
+      <p>Tickets = <span class="hook">no double-booking under a stampede</span>; holds + optimistic lock + waiting room.</p>
+      <ul>
+        <li>Claim a seat with an atomic conditional update; one winner.</li>
+        <li>Holds expire (TTL) so abandoned carts free seats.</li>
+        <li>Waiting room throttles the spike; be strongly consistent only on the seat.</li>
+      </ul>
+    </div>
+
+    <div class="pagenav">
+      <a class="card" href="sd-payments.html"><span class="tag">&larr; Previous</span><h3>Payments</h3></a>
+      <a class="card" href="sd-key-value-store.html"><span class="tag">Next deep-dive &rarr;</span><h3>Key-Value Store</h3></a>
+    </div>
+  </main>
+</div>
+</div>
+<script src="assets/js/main.js"></script>
+</body>
+</html>

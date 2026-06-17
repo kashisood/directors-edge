@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="warm">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Design Ride-Hailing (Uber / Lyft) — Director's Edge</title>
+<meta name="description" content="In-depth system design deep-dive: Design Ride-Hailing (Uber / Lyft) — requirements, capacity estimation, API, data model, architecture diagram, scaling, failure handling, and trade-offs." />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="assets/css/styles.css" />
+</head>
+<body data-theme="warm">
+
+<section class="hero">
+  <span class="eyebrow">System design deep-dive</span>
+  <h1>Design Ride-Hailing (Uber / Lyft)</h1>
+  <p class="lead">A technical deep-dive into real-time matching: ingesting a million-plus moving locations per second, geospatial indexing (geohash / QuadTree), proximity matching, and splitting ephemeral location data from durable trip state.</p>
+</section>
+
+<div class="wrap section">
+<div class="page-layout">
+  <aside class="toc">
+    <strong>On this page</strong>
+    <a href="#think">How to think (step by step)</a>
+    <a href="#reqs">1 · Requirements</a>
+    <a href="#capacity">2 · Capacity</a>
+    <a href="#geo">3 · Geospatial index</a>
+    <a href="#arch">4 · Architecture</a>
+    <a href="#match">5 · Matching</a>
+    <a href="#scale">6 · Scaling</a>
+    <a href="#tradeoffs">7 · Trade-offs</a>
+    <a href="#subsystems">Key sub-systems</a>
+    <a href="#bottlenecks">Bottlenecks</a>
+    <a href="#levels">Senior / Staff / Principal</a>
+    <a href="#faq">Follow-up Q&amp;A</a>
+  </aside>
+  <main>
+    <div class="story"><span class="label">&#128214; The story</span>
+      <p>The beating heart of this system is one question asked millions of times a second: <em>who&#8217;s near this rider, right now?</em> You can&#8217;t scan every driver, so you need an index where nearby points sit together.</p>
+      <p>That&#8217;s geospatial indexing &mdash; geohash or a QuadTree &mdash; held in memory and sharded by region. Drivers stream locations in (a million-plus writes a second), the matching service queries nearby cells and ranks by ETA, and a durable trip state machine takes over once matched. The elegant split: locations are <em>ephemeral</em> (lose them, drivers re-ping in seconds), but the trip is <em>durable</em> because that&#8217;s where money and safety live.</p>
+    </div>
+
+    <div class="callout"><span class="label">&#11088; At Google</span><p>Drive this top-down: requirements &rarr; scale &rarr; design &rarr; deep-dive on the bottleneck &rarr; trade-offs. Narrate assumptions out loud; that structured reasoning is what the hiring committee scores. Back to <a href="system-design-cases.html">System Design II</a>.</p></div>
+
+            <div class="tools"><span class="tlabel">&#128295; Typical tools</span><span class="tool">Redis (Geo)</span><span class="tool">Cassandra</span><span class="tool">Apache Kafka</span><span class="tool">S2 / geohash</span></div>
+
+    <h2 id="think">How to think about it &mdash; step by step</h2>
+    <div class="steps">
+      <div class="step"><h4>Find the core question</h4><p>'Who's near this rider right now?' asked millions of times a second. <span class="why">Why:</span> everything orbits this query.</p></div>
+      <div class="step"><h4>Index by geography</h4><p>Use a geospatial index (geohash/QuadTree) so nearby drivers share a key. <span class="why">Why:</span> you can't scan every driver.</p></div>
+      <div class="step"><h4>Handle the write firehose</h4><p>Millions of location pings/sec go into an in-memory, region-sharded store. <span class="why">Why:</span> locations change constantly and don't need durability.</p></div>
+      <div class="step"><h4>Match then commit</h4><p>Find nearby drivers, rank by ETA, lock the chosen one, hand to a durable trip state machine. <span class="why">Why:</span> the trip (money, safety) must be durable even though locations aren't.</p></div>
+      <div class="step"><h4>Name the trade-off</h4><p>Geo-sharding scales writes but complicates matches across boundaries. <span class="why">Why:</span> query neighbor cells to cover edges.</p></div>
+    </div>
+
+    <h2 id="reqs">1 &middot; Requirements</h2>
+    <p><strong>Functional:</strong> drivers continuously report location; a rider requests a ride and is matched to a nearby available driver; both track the trip in real time; ETA and (surge) pricing. <strong>Non-functional:</strong> very high write throughput (constant location pings), low-latency matching, geographic partitioning, high availability; trip state must be durable, live locations need not be.</p>
+
+    <h2 id="capacity">2 &middot; Capacity</h2>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Quantity</th><th>Estimate</th><th>Implication</th></tr></thead>
+      <tbody>
+        <tr><td>Online drivers</td><td>~5M</td><td>each pings location frequently</td></tr>
+        <tr><td>Location updates</td><td>~1.25M/s</td><td>5M &divide; 4s ping interval &mdash; write-heavy</td></tr>
+        <tr><td>Ride requests</td><td>far fewer (thousands/s)</td><td>matching is read-heavy on the geo index</td></tr>
+        <tr><td>Live locations</td><td>kept in memory</td><td>ephemeral; stale pings expire</td></tr>
+      </tbody>
+    </table></div>
+    <p>The headline number is <strong>~1.25M location writes/sec</strong> into a structure you can also query by proximity &mdash; that&#8217;s the core challenge.</p>
+
+    <h2 id="geo">3 &middot; The key idea &mdash; geospatial indexing</h2>
+    <p>You can&#8217;t scan every driver to find who&#8217;s nearby. You need an index where <em>nearby points are stored together</em>:</p>
+    <ul class="clean">
+      <li><strong>Geohash</strong>: encode (lat, long) into a short string; a shared prefix means physical proximity. &ldquo;Find nearby&rdquo; = query the rider&#8217;s cell + its 8 neighbors (to handle edges).</li>
+      <li><strong>QuadTree / S2 cells</strong>: recursively subdivide space; cells get smaller where driver density is high &mdash; better for uneven density (dense city vs sparse suburb).</li>
+    </ul>
+
+    <h2 id="arch">4 &middot; Architecture</h2>
+    <figure class="diagram">
+      <svg viewBox="0 0 860 240" role="img" aria-label="Drivers ping a location service into a sharded geo index; the matching service queries it for nearby drivers and dispatches via the trip service">
+        <defs><marker id="arUB" markerWidth="9" markerHeight="9" refX="7" refY="4.5" orient="auto"><path d="M0,0 L9,4.5 L0,9 z" fill="var(--accent)"/></marker></defs>
+        <rect class="svg-box" x="10" y="26" width="92" height="52" rx="9"/><text class="svg-txt" x="56" y="48" text-anchor="middle">Driver app</text><text class="svg-sub" x="56" y="65" text-anchor="middle">pings/4s</text>
+        <rect class="svg-accent" x="150" y="26" width="150" height="52" rx="9"/><text class="svg-txt" x="225" y="48" text-anchor="middle">Location ingest</text><text class="svg-sub" x="225" y="65" text-anchor="middle">high write rate</text>
+        <rect class="svg-good" x="350" y="20" width="190" height="64" rx="9"/><text class="svg-txt" x="445" y="44" text-anchor="middle">Geo index (in-memory)</text><text class="svg-sub" x="445" y="62" text-anchor="middle">geohash / QuadTree</text><text class="svg-sub" x="445" y="76" text-anchor="middle">sharded by region</text>
+        <rect class="svg-box" x="10" y="160" width="92" height="52" rx="9"/><text class="svg-txt" x="56" y="182" text-anchor="middle">Rider app</text><text class="svg-sub" x="56" y="199" text-anchor="middle">request ride</text>
+        <rect class="svg-accent" x="150" y="160" width="150" height="52" rx="9"/><text class="svg-txt" x="225" y="182" text-anchor="middle">Matching svc</text><text class="svg-sub" x="225" y="199" text-anchor="middle">nearby + rank by ETA</text>
+        <rect class="svg-accent2" x="350" y="160" width="150" height="52" rx="9"/><text class="svg-txt" x="425" y="182" text-anchor="middle">Trip service</text><text class="svg-sub" x="425" y="199" text-anchor="middle">state machine</text>
+        <rect class="svg-box" x="560" y="160" width="150" height="52" rx="9"/><text class="svg-txt" x="635" y="182" text-anchor="middle">Notifications</text><text class="svg-sub" x="635" y="199" text-anchor="middle">push to both</text>
+        <g class="svg-line-acc">
+          <line x1="102" y1="52" x2="148" y2="52" marker-end="url(#arUB)"/>
+          <line x1="300" y1="52" x2="348" y2="52" marker-end="url(#arUB)"/>
+          <line x1="102" y1="186" x2="148" y2="186" marker-end="url(#arUB)"/>
+          <line x1="300" y1="186" x2="348" y2="186" marker-end="url(#arUB)"/>
+          <line x1="500" y1="186" x2="558" y2="186" marker-end="url(#arUB)"/>
+          <line x1="300" y1="172" x2="350" y2="84" marker-end="url(#arUB)"/>
+        </g>
+        <text class="svg-sub" x="330" y="135" text-anchor="middle">query nearby</text>
+      </svg>
+      <figcaption>Drivers stream locations into the Location ingest service, which updates an in-memory, region-sharded geo index. On a ride request, the Matching service queries the index for drivers in the rider&#8217;s cell + neighbors, ranks by ETA, and hands the chosen driver to the Trip service (a durable state machine), which notifies both parties.</figcaption>
+    </figure>
+
+    <h2 id="match">5 &middot; The matching deep-dive</h2>
+    <ul class="clean">
+      <li><strong>Find candidates</strong>: compute the rider&#8217;s cell, gather available drivers in it + neighboring cells.</li>
+      <li><strong>Rank</strong>: by real ETA (road network/traffic), not straight-line distance.</li>
+      <li><strong>Dispatch safely</strong>: &ldquo;lock&rdquo; the offered driver for a few seconds so they&#8217;re not double-offered; on decline/timeout, fall back to the next candidate.</li>
+      <li><strong>Moving targets</strong>: drivers move constantly, so the index is updated ~every few seconds and stale entries expire &mdash; the data is intentionally ephemeral.</li>
+    </ul>
+
+    <h2 id="scale">6 &middot; Scaling &amp; failure</h2>
+    <ul class="clean">
+      <li><strong>Geo-shard</strong> the index by region/city so a city&#8217;s write load and queries stay local; route requests by location.</li>
+      <li><strong>Boundaries</strong>: a rider near a shard edge needs neighbor cells that may live on another shard &mdash; query both, or overlap cells.</li>
+      <li><strong>Hot cities</strong>: scale that region&#8217;s shards independently; surge pricing is computed per region from local supply/demand.</li>
+      <li><strong>Durability split</strong>: live locations are in-memory and disposable (lose them, drivers re-ping in seconds); <strong>trip state is persisted</strong> and replicated, with idempotent dispatch so a retry never creates two trips.</li>
+    </ul>
+
+    <h2 id="tradeoffs">7 &middot; Trade-offs</h2>
+    <ul class="clean">
+      <li><strong>Geohash</strong> (simple, fixed cells) vs <strong>QuadTree/S2</strong> (adapts to density, more complex) &mdash; pick based on how uneven your density is.</li>
+      <li><strong>In-memory speed</strong> for locations (no durability needed) vs <strong>durable, consistent</strong> trip state (money + safety).</li>
+      <li><strong>Geo-sharding</strong> scales writes but complicates cross-boundary matching.</li>
+    </ul>
+    <div class="say"><span class="label">Say it like a director</span><p>&ldquo;The crux is indexing a million-plus moving points per second so I can answer &lsquo;who&#8217;s near this rider&#8217; in milliseconds &mdash; that&#8217;s a geohash or QuadTree index, in memory, sharded by region. Locations are ephemeral so I optimize for write speed there, and keep the trip itself in a durable, idempotent state machine because that&#8217;s where correctness and money live.&rdquo;</p></div>
+
+    
+        <h2 id="subsystems">Key sub-systems</h2>
+    <ul class="clean">
+      <li><strong>Location ingest</strong> &mdash; high-write driver pings.</li>
+      <li><strong>Geo index</strong> &mdash; geohash/QuadTree, in memory, region-sharded.</li>
+      <li><strong>Matching service</strong> &mdash; nearby + ETA ranking.</li>
+      <li><strong>Trip service</strong> &mdash; durable state machine.</li>
+      <li><strong>Pricing</strong> &mdash; per-region surge.</li>
+    </ul>
+    <h2 id="bottlenecks">Bottlenecks &amp; what to optimize next</h2>
+    <ul class="clean">
+      <li>1M+ location writes/sec is the firehose &mdash; keep locations in memory, sharded by region, with TTL expiry.</li>
+      <li>Cross-boundary matching &mdash; query neighbor cells; hot cities scale independently.</li>
+    </ul>
+    <h2 id="levels">Senior &middot; Staff &middot; Principal</h2>
+    <div class="ladder">
+      <div class="lv s"><span class="tier">Senior</span><p>Builds the geo index and real-time matching.</p></div>
+      <div class="lv t"><span class="tier">Staff</span><p>Handles the write firehose, ephemeral-vs-durable split, and surge pricing.</p></div>
+      <div class="lv p"><span class="tier">Principal</span><p>Raises global multi-region routing, ETA ML models, and marketplace balancing (supply/demand).</p></div>
+    </div>
+    <h2 id="faq">Common follow-up questions</h2>
+    <details class="qa"><summary>How do you find nearby drivers fast?</summary><div class="body"><p>A geospatial index (geohash/QuadTree) so nearby drivers share a cell key; query the rider's cell plus neighbors.</p></div></details>
+    <details class="qa"><summary>Why keep locations in memory and not a durable DB?</summary><div class="body"><p>They change every few seconds and don't need durability &mdash; if lost, drivers re-ping in seconds; this enables the huge write rate.</p></div></details>
+    <details class="qa"><summary>What must be durable?</summary><div class="body"><p>The trip state machine (money, safety) &mdash; persisted and replicated, with idempotent dispatch so a retry never creates two trips.</p></div></details>
+
+    <div class="recap"><span class="label">&#129504; Remember it</span>
+      <p>Everything orbits <span class="hook">&lsquo;who&#8217;s near me, now&#8217; &mdash; a geospatial index in memory</span>.</p>
+      <ul>
+        <li>Geohash / QuadTree, sharded by region, for proximity queries.</li>
+        <li>Locations are ephemeral; the trip state machine is durable.</li>
+        <li>Geo-sharding scales writes; neighbor cells handle boundaries.</li>
+      </ul>
+    </div>
+
+    <div class="pagenav">
+      <a class="card" href="sd-message-queue.html"><span class="tag">&larr; Previous</span><h3>Message Queue</h3></a>
+      <a class="card" href="system-design-cases.html"><span class="tag">Back to &rarr;</span><h3>System Design II</h3></a>
+    </div>
+  </main>
+</div>
+</div>
+
+<script src="assets/js/main.js"></script>
+</body>
+</html>

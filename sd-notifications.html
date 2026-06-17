@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="warm">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Design a Notification System — Director's Edge</title>
+<meta name="description" content="System design deep-dive: Design a Notification System." />
+<link rel="preconnect" href="https://fonts.googleapis.com" /><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="assets/css/styles.css" />
+</head>
+<body data-theme="warm">
+<section class="hero"><span class="eyebrow">System design deep-dive</span><h1>Design a Notification System</h1><p class="lead">A deep-dive into multi-channel notifications: a queue-and-worker pipeline, preferences, dedup, retries, and provider fan-out.</p></section>
+<div class="wrap section"><div class="page-layout">
+  <aside class="toc"><strong>On this page</strong>
+    <a href="#think">How to think (step by step)</a>
+    <a href="#reqs">1 · Requirements</a>
+    <a href="#capacity">2 · Capacity</a>
+    <a href="#arch">3 · Architecture</a>
+    <a href="#hard">4 · The hard parts</a>
+    <a href="#trade">5 · Trade-offs</a>
+    <a href="#subsystems">Key sub-systems</a>
+    <a href="#bottlenecks">Bottlenecks</a>
+    <a href="#levels">Senior / Staff / Principal</a>
+    <a href="#faq">Follow-up Q&amp;A</a>
+  </aside>
+  <main>
+    <div class="callout"><span class="label">&#11088; At Google</span><p>Drive it top-down: requirements &rarr; scale &rarr; design &rarr; bottleneck &rarr; trade-offs. Back to <a href="system-design-cases.html">System Design II</a>.</p></div>
+    <div class="story"><span class="label">&#128214; The story</span>
+      <p>A notification system sits between &lsquo;something happened&rsquo; and a buzz on a phone. The work &mdash; preferences, rate limits, templates, delivery &mdash; is best done off the hot path, asynchronously.</p>
+      <p>So events land on a queue; stateless workers apply preferences and rate limits, render templates, and hand off to channel adapters (push/email/SMS). Dedup and retries make delivery reliable despite flaky providers.</p>
+    </div>
+            <div class="tools"><span class="tlabel">&#128295; Typical tools</span><span class="tool">Apache Kafka</span><span class="tool">APNs</span><span class="tool">Firebase FCM</span><span class="tool">Twilio</span><span class="tool">Amazon SES</span></div>
+
+    <h2 id="think">How to think about it &mdash; step by step</h2>
+    <div class="steps">
+      <div class="step"><h4>Get the work off the hot path</h4><p>Sending isn't instant or critical to the second, so don't block on it. <span class="why">Why:</span> a queue lets you absorb spikes and retry.</p></div>
+      <div class="step"><h4>Use a queue + workers</h4><p>Events go on a queue; workers apply preferences, render templates, and send. <span class="why">Why:</span> decouples 'something happened' from 'deliver it'.</p></div>
+      <div class="step"><h4>Fan out to channels</h4><p>Adapters talk to push (APNs/FCM), email, and SMS providers. <span class="why">Why:</span> each channel has its own quirks; isolate them.</p></div>
+      <div class="step"><h4>Make delivery reliable</h4><p>At-least-once delivery + a dedupe key so retries don't spam users; failures go to a dead-letter queue. <span class="why">Why:</span> external providers fail, so plan for it.</p></div>
+      <div class="step"><h4>Respect the human</h4><p>Honor opt-outs, quiet hours, and rate caps. <span class="why">Why:</span> notification fatigue is a real product failure.</p></div>
+    </div>
+
+    <h2 id="reqs">1 &middot; Requirements</h2>
+<p><strong>Functional:</strong> send push, email, SMS, and in-app notifications; respect user preferences &amp; quiet hours. <strong>Non-functional:</strong> high volume, reliable delivery, seconds of latency acceptable.</p>    <h2 id="capacity">2 &middot; Capacity</h2>
+<p>Millions/min in bursts &mdash; a queue absorbs spikes and decouples producers from delivery.</p>    <h2 id="arch">3 &middot; Architecture</h2>
+    <figure class="diagram">
+<svg viewBox="0 0 800 180" role="img" aria-label="Notification system"><defs><marker id="m" markerWidth="9" markerHeight="9" refX="7" refY="4.5" orient="auto"><path d="M0,0 L9,4.5 L0,9 z" fill="var(--accent)"/></marker></defs><rect class="svg-box" x="8" y="66" width="90" height="50" rx="9"/><text class="svg-txt" x="53" y="89" text-anchor="middle">Producers</text><text class="svg-sub" x="53" y="106" text-anchor="middle">events</text><rect class="svg-accent2" x="118" y="66" width="110" height="50" rx="9"/><text class="svg-txt" x="173" y="89" text-anchor="middle">Queue</text><text class="svg-sub" x="173" y="106" text-anchor="middle">Kafka</text><rect class="svg-accent" x="248" y="66" width="140" height="50" rx="9"/><text class="svg-txt" x="318" y="89" text-anchor="middle">Workers</text><text class="svg-sub" x="318" y="106" text-anchor="middle">prefs, rate-limit, render</text><rect class="svg-good" x="410" y="12" width="170" height="44" rx="9"/><text class="svg-txt" x="495" y="32" text-anchor="middle">Channel adapters</text><text class="svg-sub" x="495" y="49" text-anchor="middle">APNs/FCM, email, SMS</text><rect class="svg-box" x="410" y="110" width="150" height="44" rx="9"/><text class="svg-txt" x="485" y="130" text-anchor="middle">Prefs + dedupe</text><text class="svg-sub" x="485" y="147" text-anchor="middle">store</text><rect class="svg-box" x="600" y="12" width="180" height="44" rx="9"/><text class="svg-txt" x="690" y="32" text-anchor="middle">Providers</text><text class="svg-sub" x="690" y="49" text-anchor="middle">APNs / SES / Twilio</text><line class="svg-line-acc" x1="98" y1="91" x2="116" y2="91" marker-end="url(#m)"/><line class="svg-line-acc" x1="228" y1="91" x2="246" y2="91" marker-end="url(#m)"/><line class="svg-line-acc" x1="388" y1="82" x2="408" y2="40" marker-end="url(#m)"/><line class="svg-line-acc" x1="388" y1="98" x2="408" y2="128" marker-end="url(#m)"/><line class="svg-line-acc" x1="580" y1="34" x2="598" y2="34" marker-end="url(#m)"/></svg>
+      <figcaption>Producers publish events to a queue; stateless workers apply preferences/rate limits, render templates, dedupe, and call channel adapters, which talk to external providers (APNs/FCM, email, SMS). Failures retry with backoff and a dead-letter queue.</figcaption>
+    </figure>
+    <h2 id="hard">4 &middot; The hard parts</h2>
+    <ul class="clean">
+      <li><strong>Reliability</strong>: at-least-once delivery + idempotent dedup keys so users aren&#8217;t spammed on retries.</li>
+      <li><strong>Provider failures</strong>: retries with backoff, a dead-letter queue, and per-provider circuit breakers.</li>
+      <li><strong>Preferences &amp; throttling</strong>: respect opt-outs, quiet hours, and per-user rate caps (notification fatigue).</li>
+    </ul>
+    <h2 id="trade">5 &middot; Trade-offs</h2>
+    <ul class="clean">
+      <li>At-least-once + dedup (simple) vs exactly-once (complex).</li>
+      <li>Immediate send vs batching/digest (less noise, more delay).</li>
+    </ul>
+        <h2 id="subsystems">Key sub-systems</h2>
+    <ul class="clean">
+      <li><strong>Ingestion API</strong> &mdash; accepts events to notify on.</li>
+      <li><strong>Queue</strong> &mdash; Kafka, absorbs spikes.</li>
+      <li><strong>Workers</strong> &mdash; preferences, rate limits, templating.</li>
+      <li><strong>Channel adapters</strong> &mdash; APNs/FCM, email, SMS.</li>
+      <li><strong>Dedupe + retry</strong> &mdash; idempotency keys, DLQ.</li>
+    </ul>
+    <h2 id="bottlenecks">Bottlenecks &amp; what to optimize next</h2>
+    <ul class="clean">
+      <li>Provider rate limits/outages are the bottleneck &mdash; queue, backoff, and circuit-break per provider.</li>
+      <li>Fan-out for broadcast notifications &mdash; batch and shard workers.</li>
+    </ul>
+    <h2 id="levels">Senior &middot; Staff &middot; Principal</h2>
+    <div class="ladder">
+      <div class="lv s"><span class="tier">Senior</span><p>Builds a queue+worker pipeline with channel adapters.</p></div>
+      <div class="lv t"><span class="tier">Staff</span><p>Handles dedup, retries/DLQ, preferences, and quiet hours.</p></div>
+      <div class="lv p"><span class="tier">Principal</span><p>Raises notification ranking/bundling, cross-channel orchestration, and deliverability/compliance (opt-in laws).</p></div>
+    </div>
+    <h2 id="faq">Common follow-up questions</h2>
+    <details class="qa"><summary>How do you avoid spamming users on retries?</summary><div class="body"><p>At-least-once delivery plus an idempotency/dedupe key so a retried send is recognized and dropped.</p></div></details>
+    <details class="qa"><summary>How do you handle a provider outage?</summary><div class="body"><p>Retry with backoff into a dead-letter queue, circuit-break that provider, and optionally fail over to an alternate.</p></div></details>
+    <details class="qa"><summary>How do you respect user preferences?</summary><div class="body"><p>Workers check per-user channel preferences, quiet hours, and rate caps before sending.</p></div></details>
+
+    <div class="recap"><span class="label">&#129504; Remember it</span>
+      <p>Notifications = <span class="hook">queue &rarr; workers &rarr; channel adapters</span>, reliable + deduped.</p>
+      <ul>
+        <li>Queue decouples producers; workers apply prefs + render.</li>
+        <li>At-least-once + idempotent dedup; retries + DLQ.</li>
+        <li>Respect preferences, quiet hours, fatigue caps.</li>
+      </ul>
+    </div>
+
+    <div class="pagenav">
+      <a class="card" href="sd-autocomplete.html"><span class="tag">&larr; Previous</span><h3>Autocomplete</h3></a>
+      <a class="card" href="sd-leaderboard.html"><span class="tag">Next &rarr;</span><h3>Leaderboard</h3></a>
+    </div>
+  </main>
+</div></div>
+<script src="assets/js/main.js"></script>
+</body>
+</html>

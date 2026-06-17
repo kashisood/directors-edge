@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-theme="dark">
+<html lang="en" data-theme="warm">
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -50,8 +50,18 @@
   </aside>
 
   <main>
+    <div class="story"><span class="label">&#128214; The story</span>
+      <p>Here&#8217;s the reframe that changes everything: <em>your product is the team</em>. Features are downstream of whether you&#8217;ve built a healthy, capable group that ships well without you in the room.</p>
+      <p>So the work flows in a sequence &mdash; hire and grow the people, give them a way of working that makes delivery predictable, then measure outcomes (not activity) and feed what you learn back into the team.</p>
+      <p>Every hard situation &mdash; the underperformer, the conflict, the missed date &mdash; is handled the same way: face it early, with candor and care, and fix the <em>system</em> that produced it, not just the symptom.</p>
+    </div>
+
+      <div class="callout"><span class="label">&#11088; At Google</span><p>This pillar maps to Google&#8217;s <strong>Leadership</strong> attribute &mdash; emergent leadership, growing people, and influence without authority. Frame these stories that way. See the <a href="google.html">Google Prep</a> page for the full picture.</p></div>
+
 
     <!-- ===================== TEAM ===================== -->
+        <div class="tools"><span class="tlabel">&#128295; Tools teams run on</span><span class="tool">Jira</span><span class="tool">Confluence</span><span class="tool">GitHub</span><span class="tool">GitLab</span><span class="tool">PagerDuty</span><span class="tool">ServiceNow</span><span class="tool">Datadog</span><span class="tool">Slack</span><span class="tool">Linear</span></div>
+
     <h2 id="team">Team management</h2>
     <p>Your product is the team. Everything else is downstream of whether you've built a healthy, capable, motivated group of people. The recurring theme directors are tested on: do you scale yourself through others, or do you stay the hero?</p>
 
@@ -184,47 +194,87 @@
     <p class="no-results">No questions match your search.</p>
 
     <div data-search-group>
-      <details class="qa" data-searchable>
+      <details class="qa" data-searchable data-level="1">
         <summary>How do you measure the success of your engineering team?<span class="qa-badge core">Core</span></summary>
         <div class="body">
           <p>I lead with business outcomes — did we move the metric the company cares about — then look at delivery health through the four DORA metrics: deployment frequency, lead time, change failure rate, and time to restore. I treat those as trend lines and conversation starters, not individual scorecards, because the moment a metric becomes a target it gets gamed. I also watch leading indicators of team health like engagement and on-call load, since burned-out teams produce bad lagging numbers a quarter later.</p>
         </div>
       </details>
 
-      <details class="qa" data-searchable>
+      <details class="qa" data-searchable data-level="2">
         <summary>How do you ensure projects are delivered on time?<span class="qa-badge trap">Trap</span></summary>
         <div class="body">
           <p>I don't promise certainty — I engineer predictability. Break work into thin vertical slices that each ship value, forecast in ranges, and track against that forecast weekly so slippage surfaces early, not at the deadline. When something's at risk I bring options — cut scope, move the date, or accept defined risk — rather than ask the team to be heroes. And I manage expectations with stakeholders as actively as I manage the work itself. The trap is claiming you always hit dates; the credible answer is that you make reality visible early and adjust deliberately.</p>
         </div>
       </details>
 
-      <details class="qa" data-searchable>
+      <details class="qa" data-searchable data-level="1">
         <summary>An engineer is underperforming. Walk me through how you handle it.<span class="qa-badge core">Core</span></summary>
         <div class="body">
           <p>First I diagnose the cause, because the response differs: is it a skill gap, a motivation/will issue, a role-fit problem, or something personal going on? I have a direct, kind conversation setting out specific expectations and where they're falling short, then agree on support and a clear timeframe to improve. I document, I check in frequently, and I genuinely try to help them succeed. But if it doesn't improve, I act decisively — letting underperformance linger is unfair to the rest of the team and quietly lowers everyone's bar. The throughline is candor with care.</p>
         </div>
       </details>
 
-      <details class="qa" data-searchable>
+      <details class="qa" data-searchable data-level="3">
         <summary>Two of your best engineers strongly disagree on a technical direction. What do you do?<span class="qa-badge deep">Deep</span></summary>
         <div class="body">
           <p>Disagreement among strong people is healthy — my job is to channel it. I'd hear each perspective, separate facts from preferences, and re-anchor everyone on the shared goal and the actual constraints. Often the "right" answer is "run a small spike and let data decide" if it's reversible. If it's a one-way door and they still disagree, I make the call, explain the reasoning, and ask for disagree-and-commit. What I won't do is let it fester or pick the louder voice — I want a culture where being overruled with a clear rationale is normal and safe.</p>
         </div>
       </details>
 
-      <details class="qa" data-searchable>
+      <details class="qa" data-searchable data-level="3">
         <summary>How do you balance shipping features with paying down technical debt?<span class="qa-badge deep">Deep</span></summary>
         <div class="body">
           <p>I treat tech debt as a deliberate financial decision, not a moral failing. Some debt is smart leverage to hit a market window; the danger is unmanaged debt with no payback plan. Practically, I keep a steady allocation — often around 15–20% of capacity — for debt and reliability, make the cost of debt visible in business terms (slower delivery, more incidents), and tie paydown to the areas slowing us down most. Using error budgets helps: when reliability slips below target, we shift the balance toward fixing it. The framing for stakeholders is that debt is borrowing against future velocity, and I manage the interest.</p>
         </div>
       </details>
 
-      <details class="qa" data-searchable>
+      <details class="qa" data-searchable data-level="1">
         <summary>How do you onboard into a new org and earn trust in the first 90 days?<span class="qa-badge core">Core</span></summary>
         <div class="body">
           <p>Listen before I lead. The first month is mostly learning — 1:1s with my team, peers, and stakeholders; understanding the systems, the metrics, and where the pain is. I look for a credible early win that helps the team without disrupting what's working, so I build trust through delivery rather than announcements. By 60–90 days I'd share a point of view on priorities, co-created with the team, not imposed. The mistake I avoid is arriving with a reorg and a manifesto on day one — that signals ego over understanding.</p>
         </div>
       </details>
+      <details class="qa" data-searchable data-level="1">
+        <summary>How do you run effective 1:1s?<span class="qa-badge core">Core</span></summary>
+        <div class="body">
+          <p>I treat 1:1s as the report&rsquo;s meeting, not my status update &mdash; they own the agenda. I focus on them as a person: career growth, blockers, feedback in both directions, and how they&rsquo;re really doing, not just task tracking (which can happen elsewhere). I hold them consistently and don&rsquo;t cancel them, because reliability is what builds the trust that makes hard conversations possible later. I listen more than I talk, take notes, and follow through on what I commit to. Over time, the signal I watch for is whether they bring me real problems early &mdash; that means the relationship is working.</p>
+        </div>
+      </details>
+      <details class="qa" data-searchable data-level="2">
+        <summary>How do you set goals or OKRs for your org?<span class="qa-badge deep">Deep</span></summary>
+        <div class="body">
+          <p>I start from the company&rsquo;s strategy and translate it into a few outcomes my org owns &mdash; outcomes, not output (&lsquo;reduce checkout latency to under X&rsquo;, not &lsquo;ship feature Y&rsquo;). I involve the teams in shaping the key results so they have ownership rather than handed-down targets, keep the set small enough to focus, and make them measurable. I separate aspirational goals from committed ones so we&rsquo;re honest about what&rsquo;s a stretch. Then I review progress regularly and treat misses as learning, not punishment &mdash; if every objective is hit, they weren&rsquo;t ambitious enough. I&rsquo;m also wary of Goodhart: goals guide focus; they aren&rsquo;t individual scorecards.</p>
+        </div>
+      </details>
+      <details class="qa" data-searchable data-level="2">
+        <summary>Two teams have a dependency conflict that&rsquo;s blocking a launch. What do you do?<span class="qa-badge trap">Trap</span></summary>
+        <div class="body">
+          <p>First I&rsquo;d get the facts and the shared goal in one room rather than letting it escalate over chat &mdash; what each team needs, the real deadline, and the customer impact of slipping. Most of these are prioritization or sequencing problems, not technical ones. I&rsquo;d look for the unblock: can we stub the dependency, deliver a thin slice, or reprioritize a sprint? If the teams can&rsquo;t resolve it, I make the call as the leader who can see across both, explain the reasoning, and own the trade-off. Then the systemic fix: surface why the dependency wasn&rsquo;t visible earlier and improve cross-team planning so we see these before launch week.</p>
+        </div>
+      </details>
+      <details class="qa" data-searchable data-level="3">
+        <summary>How do you scale yourself as your org grows from one team to five?<span class="qa-badge deep">Deep</span></summary>
+        <div class="body">
+          <p>The shift is from managing work to managing managers and systems. I move from being in the details to setting clear direction, hiring and developing strong leaders, and building the mechanisms &mdash; planning rhythms, decision frameworks, metrics &mdash; that let teams make good calls without me. I deliberately let go of things I used to own and accept they&rsquo;ll be done differently. I protect a small amount of my time for the highest-leverage, hardest-to-delegate work: strategy, cross-org unblocking, and senior hiring. The failure mode I watch for in myself is staying the bottleneck or the hero; my job is to make the org effective when I&rsquo;m not in the room.</p>
+        </div>
+      </details>
+      <details class="qa" data-searchable data-level="3">
+        <summary>How do you build a culture of operational excellence?<span class="qa-badge deep">Deep</span></summary>
+        <div class="body">
+          <p>I make reliability a first-class, shared value rather than an afterthought. Concretely: blameless post-mortems so people surface problems instead of hiding them; clear SLOs and error budgets so reliability has a seat at the prioritization table; on-call that&rsquo;s humane and owned by the teams who build the systems (you build it, you run it); and operational metrics reviewed as seriously as feature delivery. I celebrate prevention and good incident response, not just shipping. Culture follows what leaders pay attention to and reward, so I consistently spend attention on operational health &mdash; that&rsquo;s what signals it actually matters.</p>
+        </div>
+      </details>
+    </div>
+
+    
+    <div class="recap"><span class="label">&#129504; Remember it</span>
+      <p><span class="hook">Your product is the team</span> &mdash; everything else is downstream.</p>
+      <ul>
+        <li>Measure success by what the team ships without you.</li>
+        <li>Predictability comes from small batches + honest early signals.</li>
+        <li>Address problems with candor + care; fix the system, not the symptom.</li>
+      </ul>
     </div>
 
     <div class="pagenav">

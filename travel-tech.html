@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="warm">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Travel Tech (TMC) — Director's Edge</title>
+<meta name="description" content="Travel technology for an engineering leader at a TMC: GDS, EDIFACT, NDC, NDC-X, the B2B SaaS TMC workflow, and AI enablement — in question-and-answer form with a workflow diagram." />
+<link rel="preconnect" href="https://fonts.googleapis.com" /><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="assets/css/styles.css" />
+</head>
+<body data-theme="warm">
+
+<section class="hero">
+  <span class="eyebrow">&#9992;&#65039; Domain &middot; Travel technology (TMC)</span>
+  <h1>Travel Tech for an Engineering Leader</h1>
+  <p class="lead">How corporate travel technology actually works &mdash; the GDS rails, EDIFACT vs NDC, the B2B SaaS workflow of a Travel Management Company (TMC) like FCM, and where AI is reshaping it. In question-and-answer form, with a workflow diagram, filterable by level.</p>
+</section>
+
+<div class="wrap section">
+<div class="page-layout">
+  <aside class="toc"><strong>On this page</strong>
+    <a href="#workflow">The TMC workflow</a>
+    <a href="#examples">What they look like</a>
+    <a href="#questions">Q&amp;A bank</a>
+  </aside>
+  <main>
+    <div class="tools"><span class="tlabel">&#128295; The ecosystem</span><span class="tool">Amadeus</span><span class="tool">Sabre</span><span class="tool">Travelport</span><span class="tool">IATA NDC</span><span class="tool">EDIFACT</span><span class="tool">OBT (Concur)</span><span class="tool">PNR / PSS</span><span class="tool">BSP / ARC</span></div>
+
+    <div class="story"><span class="label">&#128214; The story</span>
+      <p>A TMC (Travel Management Company) is a B2B business: it manages travel <em>for companies</em> &mdash; booking flights, hotels, rail and cars within policy, looking after travellers, and reporting the spend. FCM is the corporate TMC brand of Flight Centre Travel Group (FCTG).</p>
+      <p>Underneath, the hard part is <em>content</em>: airfares and rules historically flow through Global Distribution Systems (GDS) using a terse 1980s message format (EDIFACT). The industry is shifting to <strong>NDC</strong> &mdash; modern XML offers-and-orders straight from airlines &mdash; and a TMC platform has to blend old and new into one clean booking experience, then fulfil, service, and report on it.</p>
+    </div>
+
+    <h2 id="workflow">The TMC workflow &mdash; shop to settle</h2>
+    <figure class="diagram">
+      <svg viewBox="0 0 920 320" role="img" aria-label="Travel TMC workflow from content sources through the platform to mid and back office">
+        <defs><marker id="arT" markerWidth="9" markerHeight="9" refX="7" refY="4.5" orient="auto"><path d="M0,0 L9,4.5 L0,9 z" fill="var(--accent)"/></marker></defs>
+        <!-- content sources -->
+        <text class="svg-sub" x="95" y="20" text-anchor="middle">CONTENT SOURCES</text>
+        <rect class="svg-box" x="10" y="30" width="170" height="34" rx="8"/><text class="svg-sub" x="95" y="51" text-anchor="middle">GDS (Amadeus/Sabre) &mdash; EDIFACT</text>
+        <rect class="svg-box" x="10" y="72" width="170" height="34" rx="8"/><text class="svg-sub" x="95" y="93" text-anchor="middle">Airlines via NDC (XML)</text>
+        <rect class="svg-box" x="10" y="114" width="170" height="34" rx="8"/><text class="svg-sub" x="95" y="135" text-anchor="middle">LCC / hotel / rail aggregators</text>
+        <!-- aggregation -->
+        <rect class="svg-accent" x="210" y="60" width="140" height="58" rx="10"/><text class="svg-txt" x="280" y="84" text-anchor="middle">Aggregation</text><text class="svg-sub" x="280" y="101" text-anchor="middle">normalise offers</text>
+        <!-- platform pipeline -->
+        <text class="svg-sub" x="560" y="20" text-anchor="middle">TMC PLATFORM (B2B SaaS)</text>
+        <rect class="svg-accent" x="380" y="30" width="120" height="44" rx="9"/><text class="svg-txt" x="440" y="52" text-anchor="middle">Shop / Offer</text><text class="svg-sub" x="440" y="67" text-anchor="middle">policy + price</text>
+        <rect class="svg-accent" x="520" y="30" width="120" height="44" rx="9"/><text class="svg-txt" x="580" y="52" text-anchor="middle">Book / Order</text><text class="svg-sub" x="580" y="67" text-anchor="middle">approval, PNR</text>
+        <rect class="svg-accent" x="660" y="30" width="120" height="44" rx="9"/><text class="svg-txt" x="720" y="52" text-anchor="middle">Ticket / Fulfil</text><text class="svg-sub" x="720" y="67" text-anchor="middle">issue, BSP/ARC</text>
+        <rect class="svg-accent2" x="380" y="120" width="120" height="44" rx="9"/><text class="svg-txt" x="440" y="142" text-anchor="middle">Mid-office</text><text class="svg-sub" x="440" y="157" text-anchor="middle">QC, auto-fix</text>
+        <rect class="svg-accent2" x="520" y="120" width="120" height="44" rx="9"/><text class="svg-txt" x="580" y="142" text-anchor="middle">Servicing 24/7</text><text class="svg-sub" x="580" y="157" text-anchor="middle">changes, duty of care</text>
+        <rect class="svg-accent2" x="660" y="120" width="120" height="44" rx="9"/><text class="svg-txt" x="720" y="142" text-anchor="middle">Back-office</text><text class="svg-sub" x="720" y="157" text-anchor="middle">invoice, MI, expense</text>
+        <!-- consumers -->
+        <rect class="svg-good" x="800" y="60" width="110" height="58" rx="10"/><text class="svg-txt" x="855" y="84" text-anchor="middle">Corporate</text><text class="svg-sub" x="855" y="101" text-anchor="middle">booker + admin</text>
+        <!-- AI layer -->
+        <rect class="svg-box" x="380" y="206" width="400" height="40" rx="9" stroke-dasharray="5 4"/><text class="svg-txt" x="580" y="230" text-anchor="middle">&#129302; AI layer: chat booking &middot; agentic servicing &middot; fare/QC automation &middot; RAG over policy</text>
+        <g class="svg-line-acc">
+          <line x1="180" y1="47" x2="208" y2="78" marker-end="url(#arT)"/>
+          <line x1="180" y1="89" x2="208" y2="89" marker-end="url(#arT)"/>
+          <line x1="180" y1="131" x2="208" y2="100" marker-end="url(#arT)"/>
+          <line x1="350" y1="70" x2="378" y2="58" marker-end="url(#arT)"/>
+          <line x1="500" y1="52" x2="518" y2="52" marker-end="url(#arT)"/>
+          <line x1="640" y1="52" x2="658" y2="52" marker-end="url(#arT)"/>
+          <line x1="780" y1="60" x2="800" y2="78" marker-end="url(#arT)"/>
+          <line x1="720" y1="74" x2="720" y2="118" marker-end="url(#arT)"/>
+        </g>
+        <text class="svg-sub" x="460" y="290" text-anchor="middle">Front office (shop&rarr;book&rarr;ticket) sits on top; mid/back office (QC, servicing, reporting) run continuously; an AI layer cuts across all of it.</text>
+      </svg>
+      <figcaption>A TMC platform aggregates content (GDS/EDIFACT + airline NDC + direct), lets corporate bookers shop within policy, then books, tickets, quality-checks, services, and reports &mdash; increasingly with AI woven through every stage.</figcaption>
+    </figure>
+
+    <h2 id="examples">What these actually look like</h2>
+    <p>PNR, EDIFACT and NDC get thrown around abstractly. Here&#8217;s a (simplified, illustrative) look at each so the shapes are concrete.</p>
+
+    <div class="example"><span class="label">&#128205; A PNR &mdash; the classic GDS booking record</span>
+      <p>A <strong>PNR</strong> is identified by a 6-character <strong>record locator</strong> (e.g. <code>ABC123</code>). In a GDS like Amadeus/Sabre an agent sees a terse, coded display:</p>
+      <pre class="code">--- RLOC: ABC123 ---
+1.1 SHARMA/KRISHMA MS
+ 1  AI 302 Y 15SEP DEL BOM HK1  0805  1015   <span class="c">* flight, class Y, confirmed</span>
+ 2  AI 309 Y 22SEP BOM DEL HK1  1840  2055   <span class="c">* return segment</span>
+TKT/TL  TAW/17SEP                            <span class="c">* ticketing time limit</span>
+SSR VGML AI HK1/S2                           <span class="c">* special service: veg meal, segment 2</span>
+APE krishma@example.com                      <span class="c">* contact email</span>
+RECEIVED FROM - KRISHMA</pre>
+      <p style="margin:6px 0 0">Each line is a coded element: passenger, flight segments, ticketing limit, special-service requests (SSR), contacts. It&#8217;s compact and powerful &mdash; but rigid.</p>
+    </div>
+
+    <div class="example"><span class="label">&#128205; EDIFACT &mdash; the wire format behind the scenes</span>
+      <p>When systems talk, that PNR moves as <strong>EDIFACT</strong>: terse segments where <code>+</code> separates data elements, <code>:</code> separates components, and <code>'</code> ends a segment.</p>
+      <pre class="code">UNB+IATA:1+1ASIWXYZ+1ASIWXYZ+250915:0805+0001'  <span class="c">interchange header</span>
+UNH+0001+PAORES:13:1:1A'                         <span class="c">message: process PNR</span>
+ORG+1A+DELAI2100:DEL'                            <span class="c">originating office (Delhi)</span>
+SSR+++VGML:HK:1:::S2'                            <span class="c">veg meal, confirmed, segment 2</span>
+TIF+SHARMA:KRISHMA:MS'                           <span class="c">traveller name</span>
+UNT+15+0001'                                     <span class="c">message trailer (15 segments)</span>
+UNZ+1+0001'                                      <span class="c">interchange trailer</span></pre>
+      <p style="margin:6px 0 0">Decades-old, extremely compact, machine-efficient &mdash; but it can&#8217;t easily express rich content like bundles, photos, or personalised offers. That&#8217;s the limitation NDC addresses.</p>
+    </div>
+
+    <div class="example"><span class="label">&#128205; NDC &mdash; the same booking as modern XML offers &amp; orders</span>
+      <p><strong>NDC</strong> is XML and models an <strong>Offer</strong> (what the airline proposes) that becomes an <strong>Order</strong> (what you bought) &mdash; with ancillaries as first-class items:</p>
+      <pre class="code">&lt;Offer OfferID="OFFER-AI-7Y3K" Owner="AI"&gt;
+  &lt;TotalPrice&gt;&lt;SimpleCurrencyPrice Code="INR"&gt;7450&lt;/SimpleCurrencyPrice&gt;&lt;/TotalPrice&gt;
+  &lt;OfferItem OfferItemID="OI-1"&gt;
+    &lt;Service&gt;&lt;ServiceID&gt;FLIGHT-DEL-BOM-15SEP&lt;/ServiceID&gt;&lt;/Service&gt;   <span class="c">the flight</span>
+  &lt;/OfferItem&gt;
+  &lt;OfferItem OfferItemID="OI-2"&gt;
+    &lt;Service&gt;&lt;ServiceID&gt;BAG-20KG&lt;/ServiceID&gt;&lt;/Service&gt;            <span class="c">ancillary: extra bag</span>
+  &lt;/OfferItem&gt;
+&lt;/Offer&gt;
+
+<span class="c">// after the customer accepts, it becomes an Order:</span>
+&lt;Order OrderID="ORD-AI-9F2Q1K" Owner="AI"&gt;
+  &lt;TotalPrice&gt;&lt;SimpleCurrencyPrice Code="INR"&gt;7450&lt;/SimpleCurrencyPrice&gt;&lt;/TotalPrice&gt;
+  &lt;OrderItem&gt;&hellip; flight + bag &hellip;&lt;/OrderItem&gt;
+&lt;/Order&gt;</pre>
+      <p style="margin:6px 0 0">Verbose vs EDIFACT, but expressive: branded fares, seats, bags, photos and personalised pricing all fit naturally.</p>
+    </div>
+
+    <div class="example"><span class="label">&#128273; The same trip, three identifiers</span>
+      <div class="kvs">
+        <span class="k">GDS / PNR</span><span class="v">record locator &rarr; ABC123</span>
+        <span class="k">E-ticket</span><span class="v">13-digit number &rarr; 098 2412345678  (098 = airline prefix)</span>
+        <span class="k">NDC</span><span class="v">Order ID &rarr; ORD-AI-9F2Q1K  (no separate ticket; the Order is the record)</span>
+      </div>
+      <p style="margin:6px 0 0">The shift NDC-X is driving: from &ldquo;PNR + e-ticket&rdquo; to a single <strong>Order</strong> as the system of record.</p>
+    </div>
+
+        <div class="example" data-ex-added><span class="label">&#128205; Real example &mdash; caching GDS availability (and why TTLs are short)</span>
+      <p>Calling the GDS (Amadeus/Sabre/Travelport) for live fares is slow and metered per transaction. So a TMC caches results &mdash; but flight prices and seats change by the minute, so the <strong>TTL</strong> (time-to-live) must be short and the booking must be re-validated:</p>
+      <pre class="code">search LHR&rarr;JFK, 12 Aug
+  cache MISS &rarr; call GDS (Fare Quote) ~1200 ms
+  store: key="LHR-JFK-2026-08-12-1ADT"  value=offers  TTL=120s
+
+same search 40s later
+  cache HIT &rarr; return in ~5 ms   (no GDS call, no GDS transaction fee)
+
+user clicks BOOK at 200s (cache already expired)
+  &rarr; do NOT trust cached price &mdash; re-price + confirm availability live, THEN create the PNR
+  &rarr; if fare changed: show "price updated" before payment</pre>
+      <p><strong>What this teaches:</strong> caching shopping results cuts latency from ~1s to ~5ms and slashes GDS transaction costs, but a stale price is a real liability &mdash; the airline owns the fare and can change it. So you keep the search cache short (often 60&ndash;300s) and <em>always</em> re-validate price and availability at the moment of booking before you commit the PNR and take payment. This &ldquo;cache to shop, verify to book&rdquo; pattern is core to every travel platform.</p>
+    </div>
+
+    <h2 id="questions">Q&amp;A bank</h2>
+    <div class="search"><input type="text" data-search placeholder="Search travel-tech questions&hellip;" /></div>
+    <div class="btn-row" style="margin-top:0">
+      <button class="btn" data-open-all>Expand all</button>
+      <button class="btn" data-close-all>Collapse all</button>
+    </div>
+    <p class="no-results">No questions match your search.</p>
+
+    <div data-search-group>
+      <details class="qa" data-searchable data-level="1">
+        <summary>What is a TMC, and how does FCM/FCTG fit in?<span class="qa-badge core">Core</span></summary>
+        <div class="body"><p>A <strong>TMC</strong> (Travel Management Company) manages business travel on behalf of corporate clients &mdash; booking flights, hotels, rail and cars within the company&#8217;s travel policy, providing 24/7 traveller support and duty of care, negotiating fares, and reporting spend back to the client. It&#8217;s a <strong>B2B</strong> business (the customer is the company, not the individual traveller). <strong>FCM</strong> is the corporate-travel TMC brand of <strong>Flight Centre Travel Group (FCTG)</strong>; its technology is delivered as <strong>SaaS</strong> platforms used by corporate bookers and travel consultants.</p></div>
+      </details>
+      <details class="qa" data-searchable data-level="1">
+        <summary>What is a GDS, and which ones matter?<span class="qa-badge core">Core</span></summary>
+        <div class="body"><p>A <strong>GDS</strong> (Global Distribution System) is the aggregator that historically connects travel sellers (TMCs, agencies, online booking tools) to airline, hotel, car and rail inventory and fares. The big three are <strong>Amadeus, Sabre, and Travelport</strong>. For decades the GDS has been the central marketplace: a TMC searches and books across many airlines through one GDS connection rather than integrating each airline directly.</p></div>
+      </details>
+      <details class="qa" data-searchable data-level="2">
+        <summary>What is EDIFACT, and why is it still around?<span class="qa-badge deep">Deep</span></summary>
+        <div class="body"><p><strong>EDIFACT</strong> (UN/EDIFACT) is the terse, structured electronic-messaging standard the airline/GDS world has used since the 1980s for availability, pricing, booking and ticketing messages. It&#8217;s compact and battle-tested but rigid &mdash; it carries fares and a <strong>PNR</strong> well, but struggles to express rich, modern content like branded fares, bundles, seat maps and personalised offers. It persists because the entire distribution chain runs on it; replacing it is a multi-year industry migration, which is exactly what NDC is driving.</p></div>
+      </details>
+      <details class="qa" data-searchable data-level="2">
+        <summary>What is NDC, and what problem does it solve?<span class="qa-badge deep">Deep</span></summary>
+        <div class="body"><p><strong>NDC</strong> (New Distribution Capability) is IATA&#8217;s <strong>XML-based</strong> standard that lets airlines distribute rich, dynamic content &mdash; branded fares, ancillaries (bags, seats, wifi), bundles and personalised offers &mdash; directly to sellers, instead of being flattened into EDIFACT/GDS fares. It moves the model from &ldquo;fares in a GDS&rdquo; to an <strong>Offer &amp; Order</strong> model: the airline creates an <em>Offer</em>, the seller turns it into an <em>Order</em>. For a TMC it means richer content and merchandising, but also more integrations and complexity to manage.</p></div>
+      </details>
+      <details class="qa" data-searchable data-level="2">
+        <summary>EDIFACT vs NDC — how does a TMC platform handle both?<span class="qa-badge deep">Deep</span></summary>
+        <div class="body"><p>You build an <strong>aggregation/normalisation layer</strong> that hides the source. The platform shops EDIFACT (via GDS), NDC (via airline APIs or an aggregator), and direct/LCC connects in parallel, then normalises everything into one internal offer model so bookers see a single, comparable list. The hard parts are reconciling content and servicing differences (an NDC order and a GDS PNR are serviced differently &mdash; changes, refunds, exchanges), and keeping a consistent record. The leadership framing: abstract the source so the rest of the platform &mdash; and the user &mdash; doesn&#8217;t care whether an offer came from EDIFACT or NDC.</p>
+        <div class="say"><span class="label">Say it like a director</span><p>&ldquo;I&#8217;d treat content sources as pluggable adapters behind a normalised offer/order model. The booking, fulfilment, servicing and reporting layers speak our internal model, so adding NDC airlines or retiring EDIFACT becomes an adapter change, not a platform rewrite.&rdquo;</p></div></div>
+      </details>
+      <details class="qa" data-searchable data-level="3">
+        <summary>What is NDC-X?<span class="qa-badge deep">Deep</span></summary>
+        <div class="body"><p><strong>NDC-X</strong> is IATA&#8217;s program to <em>accelerate</em> NDC adoption and drive the industry toward a full <strong>Offers and Orders</strong> world &mdash; ultimately retiring the legacy PNR/EDIFACT and ticket constructs in favour of a single modern order record across the journey. Think of NDC as the standard and NDC-X as the umbrella transformation program (capability building, adoption targets, and the &ldquo;Offer/Order&rdquo; end-state). For a TMC leader it signals direction of travel: invest in an order-centric architecture, because the industry is moving there. (Program specifics and timelines evolve &mdash; verify current IATA guidance.)</p></div>
+      </details>
+      <details class="qa" data-searchable data-level="1">
+        <summary>What is a PNR, and how does it differ from an Order?<span class="qa-badge core">Core</span></summary>
+        <div class="body"><p>A <strong>PNR</strong> (Passenger Name Record) is the traditional booking record in the GDS/airline reservation system &mdash; itinerary, passenger, contact, ticketing details. In the NDC world, the equivalent is an <strong>Order</strong> &mdash; a single record holding the offer the customer accepted (flights + ancillaries + price), managed via Order Management. The shift from PNR+ticket to a unified Order is the structural change NDC-X is pushing; a modern TMC platform increasingly models bookings as orders regardless of source.</p></div>
+      </details>
+      <details class="qa" data-searchable data-level="2">
+        <summary>Walk me through the end-to-end TMC booking workflow.<span class="qa-badge deep">Deep</span></summary>
+        <div class="body"><p><strong>Shop</strong>: a traveller/booker searches via an <strong>OBT</strong> (online booking tool) or a consultant; the platform pulls offers from GDS + NDC + direct and applies <strong>travel policy</strong> (allowed fares, approvals). <strong>Book</strong>: the chosen offer becomes a PNR/Order, routed through approval if needed. <strong>Ticket / fulfil</strong>: the ticket is issued and settled with airlines via <strong>BSP/ARC</strong>. <strong>Mid-office</strong>: automated quality control catches errors, applies rules, adds fare savings/robotics. <strong>Servicing</strong>: 24/7 changes, cancellations, and disruption re-accommodation, with duty-of-care tracking of where travellers are. <strong>Back-office</strong>: invoicing, reconciliation, and management-information reporting, feeding the client&#8217;s <strong>expense</strong> system.</p></div>
+      </details>
+      <details class="qa" data-searchable data-level="1">
+        <summary>What is an OBT, and how does it relate to the TMC?<span class="qa-badge core">Core</span></summary>
+        <div class="body"><p>An <strong>OBT</strong> (Online Booking Tool) is the self-service interface corporate travellers use to book within policy (examples in the market include Concur Travel and others, plus TMC-built tools). The TMC sits behind it: providing content, fulfilment, servicing, and reporting, and handling anything the OBT can&#8217;t (complex itineraries, after-hours support). A TMC may offer its own OBT as part of its SaaS platform or integrate with third-party OBTs.</p></div>
+      </details>
+      <details class="qa" data-searchable data-level="2">
+        <summary>What is mid-office vs back-office in a TMC?<span class="qa-badge deep">Deep</span></summary>
+        <div class="body"><p><strong>Mid-office</strong> is the automated quality-control and rules engine between booking and fulfilment: it validates PNRs/orders, enforces policy, fixes common errors, finds fare savings (re-shopping), and queues exceptions for agents &mdash; classic &ldquo;robotics&rdquo; that scale a small ops team. <strong>Back-office</strong> handles the money and data after travel: invoicing, reconciliation with BSP/ARC settlement, and <strong>MI</strong> (management information) reporting on spend, savings, and compliance, often feeding the client&#8217;s expense/finance systems. Together they&#8217;re where a TMC earns trust on accuracy and savings.</p></div>
+      </details>
+      <details class="qa" data-searchable data-level="2">
+        <summary>What does BSP/ARC settlement mean?<span class="qa-badge deep">Deep</span></summary>
+        <div class="body"><p><strong>BSP</strong> (Billing and Settlement Plan, IATA &mdash; used in most of the world) and <strong>ARC</strong> (Airlines Reporting Corporation &mdash; the US equivalent) are the clearing houses that settle money between travel agencies/TMCs and airlines for tickets issued. Instead of the TMC paying each airline directly, sales are reported and settled centrally on a cycle. It&#8217;s the travel-industry analogue of payment settlement &mdash; reconciliation against BSP/ARC files is a core back-office function.</p></div>
+      </details>
+      <details class="qa" data-searchable data-level="3">
+        <summary>How would you architect a modern TMC platform (B2B SaaS)?<span class="qa-badge deep">Deep</span></summary>
+        <div class="body"><p>Source-agnostic and order-centric. A <strong>content/aggregation layer</strong> of pluggable adapters (GDS-EDIFACT, NDC, LCC, hotel/rail) normalises into one offer model; a <strong>policy &amp; approval</strong> engine; an <strong>order/PNR service</strong> as the system of record; <strong>fulfilment</strong> (ticketing + BSP/ARC); event-driven <strong>mid-office</strong> automation; a <strong>servicing</strong> layer for changes/disruption; and a <strong>data/reporting</strong> pipeline for MI and expense feeds. Multi-tenant SaaS with per-client policy config, strong duty-of-care (real-time traveller tracking), and resilience (content sources fail often, so degrade gracefully). The director framing: abstract volatile external systems behind adapters, model everything as an order, and treat reliability of third-party content as a first-class design problem.</p></div>
+      </details>
+      <details class="qa" data-searchable data-level="2">
+        <summary>Why is multi-tenancy and policy configuration central for a TMC SaaS?<span class="qa-badge deep">Deep</span></summary>
+        <div class="body"><p>A TMC serves many corporate clients on one platform, each with its own travel policy, approval chains, preferred suppliers, negotiated fares, cost centres, and reporting. So the architecture must be <strong>multi-tenant</strong> with per-client configuration driving behaviour at runtime &mdash; without forking the codebase per client. Get this right and onboarding a new corporate is configuration, not engineering; get it wrong and every client becomes a custom build.</p></div>
+      </details>
+      <details class="qa" data-searchable data-level="3">
+        <summary>Content sources are flaky and slow — how do you design for that?<span class="qa-badge trap">Trap</span></summary>
+        <div class="body"><p>Treat external content (GDS, NDC airline APIs) as unreliable by default. <strong>Search</strong>: fan out to sources in parallel, set tight timeouts, stream/aggregate results as they arrive, and cache where freshness allows (fares go stale fast, so short TTLs). <strong>Book/ticket</strong>: make operations idempotent and use sagas with compensation, because a booking may succeed at the airline but time out to you. Add circuit breakers per source, graceful degradation (show what you have), and strong reconciliation so a half-completed booking is detected and resolved. This mirrors the payments and search deep-dives &mdash; the same resilience patterns apply.</p></div>
+      </details>
+      <details class="qa" data-searchable data-level="2">
+        <summary>How is AI being used in a travel-tech TMC today?<span class="qa-badge deep">Deep</span></summary>
+        <div class="body"><p>Across the workflow: <strong>conversational/agentic booking</strong> (book and change trips in natural language); <strong>virtual agents</strong> for servicing and after-hours support; <strong>disruption re-accommodation</strong> (automatically finding alternatives when a flight is cancelled); <strong>mid-office automation</strong> (AI-assisted QC and fare re-shopping); <strong>RAG over travel policy and content</strong> so answers are grounded in the client&#8217;s rules; <strong>personalisation</strong> and offer ranking; and back-office <strong>summarisation/reporting</strong> (itinerary summaries, spend insights). The leadership stance is the same as elsewhere: capture the leverage, keep humans on high-stakes actions, ground answers with RAG, and measure with evals.</p></div>
+      </details>
+      <details class="qa" data-searchable data-level="3">
+        <summary>How would you roll out an AI assistant for corporate travellers?<span class="qa-badge deep">Deep</span></summary>
+        <div class="body"><p>Start where it&#8217;s high-value and low-risk: <strong>servicing and Q&amp;A</strong> (flight status, &ldquo;what&#8217;s my itinerary&rdquo;, policy questions) grounded with <strong>RAG</strong> over the client&#8217;s policy and the live booking, before letting it <em>transact</em>. As confidence grows, add agentic actions (rebooking, changes) with guardrails: policy enforcement, spend limits, and human approval on irreversible/expensive steps. Wire it to the order/servicing APIs via tools (MCP-style), keep an audit trail, and gate quality with evals before customer-facing release. Frame it as augmenting consultants &mdash; deflecting routine requests so agents handle the complex, high-touch cases.</p></div>
+      </details>
+      <details class="qa" data-searchable data-level="1">
+        <summary>What's duty of care, and why is it an engineering concern?<span class="qa-badge core">Core</span></summary>
+        <div class="body"><p><strong>Duty of care</strong> is the employer&#8217;s legal and moral obligation to keep travelling employees safe. For a TMC platform that means knowing <em>where every traveller is</em> in real time, alerting on disruptions or risk events (weather, strikes, security), and being able to locate and re-book affected travellers fast. Engineering-wise it&#8217;s real-time itinerary tracking, risk-feed integration, and reliable notifications &mdash; a core differentiator, not a nice-to-have.</p></div>
+      </details>
+      <details class="qa" data-searchable data-level="2">
+        <summary>"Let's just connect to one GDS and be done" — your take?<span class="qa-badge trap">Trap</span></summary>
+        <div class="body"><p>One GDS is the simple start, but it limits content and locks you in. Increasingly, the best fares and rich content (ancillaries, branded fares) come via <strong>NDC direct from airlines</strong>, and low-cost carriers often aren&#8217;t in the GDS at all. So the durable answer is a <strong>source-agnostic aggregation layer</strong> that can add NDC and direct connects over time without re-plumbing the platform. Betting everything on a single EDIFACT/GDS pipe is a strategic risk as the industry moves to offers-and-orders. Pragmatically: start with the GDS for breadth, but architect for multi-source from day one.</p></div>
+      </details>
+      <details class="qa" data-searchable data-level="3">
+        <summary>As an engineering leader, how do you navigate the EDIFACT-to-NDC transition?<span class="qa-badge deep">Deep</span></summary>
+        <div class="body"><p>Treat it as a multi-year migration, not a switch. Build the order-centric, source-agnostic platform now so NDC airlines plug in as adapters; run EDIFACT and NDC side by side and shift content gradually, measuring coverage, look-to-book, and servicing parity (NDC servicing maturity varies by airline). Manage the risk that some carriers&#8217; NDC is immature &mdash; keep GDS fallback. Communicate to the business in terms of content richness and cost, and sequence so feature delivery never stalls behind the migration. It&#8217;s the same playbook as any big platform migration: abstraction layer, incremental cutover, measure, keep fallback.</p></div>
+      </details>
+      <details class="qa" data-searchable data-level="2">
+        <summary>What metrics matter for a travel-tech platform?<span class="qa-badge deep">Deep</span></summary>
+        <div class="body"><p><strong>Look-to-book ratio</strong> (searches per booking &mdash; high ratios stress and cost you on GDS/NDC calls), <strong>search latency</strong> and content <strong>response/timeout rates</strong> per source, <strong>booking success / failure</strong> and abandonment, <strong>NDC vs EDIFACT mix</strong> and coverage, <strong>online adoption</strong> (self-service vs agent), policy <strong>compliance</strong> and realized <strong>savings</strong>, and servicing/SLA metrics for disruptions. As a leader I&#8217;d tie engineering work to look-to-book cost and booking success, because those move both customer experience and the cost base.</p></div>
+      </details>
+    </div>
+
+    <div class="recap"><span class="label">&#129504; Remember it</span>
+      <p>A TMC is <span class="hook">B2B SaaS that aggregates volatile travel content and turns it into policy-compliant, serviced, reported orders</span> &mdash; increasingly with AI across the workflow.</p>
+      <ul>
+        <li>GDS (Amadeus/Sabre/Travelport) + EDIFACT = the legacy rails; <strong>NDC</strong> (XML, offers &amp; orders) is the modern direction, <strong>NDC-X</strong> the program driving it.</li>
+        <li>Architect <strong>source-agnostic and order-centric</strong>: adapters behind a normalised offer/order model, with GDS fallback.</li>
+        <li>Mid-office (QC/robotics) and back-office (BSP/ARC settlement, MI) are where accuracy &amp; savings live; duty of care is real-time and critical.</li>
+        <li>AI: grounded servicing &amp; chat booking first, then guarded agentic actions &mdash; augmenting consultants.</li>
+      </ul>
+    </div>
+
+    <div class="pagenav">
+      <a class="card" href="payments.html"><span class="tag">&larr; Domain</span><h3>Payments Tech</h3></a>
+      <a class="card" href="ai-insights.html"><span class="tag">Related &rarr;</span><h3>AI Insights</h3></a>
+    </div>
+  </main>
+</div>
+</div>
+
+<script src="assets/js/main.js"></script>
+</body>
+</html>

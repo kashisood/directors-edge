@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="warm">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Mobile Native — Director's Edge</title>
+<meta name="description" content="High-level mobile native knowledge for engineering leaders: iOS/Android, native vs cross-platform, Expo & React Native, TestFlight & app stores, mobile CI/CD and release management." />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="assets/css/styles.css" />
+</head>
+<body data-theme="warm">
+
+<section class="hero">
+  <span class="eyebrow">Pillar 7</span>
+  <h1>Mobile Native</h1>
+  <p class="lead">You won't ship the app yourself, but if your org has a mobile presence you must speak fluently about how it's built, tested, signed, and released. App stores add constraints web doesn't have &mdash; review gates, signing, slow rollback &mdash; and leaders who ignore them get burned.</p>
+</section>
+
+<div class="wrap section">
+<div class="page-layout">
+
+  <aside class="toc">
+    <strong>On this page</strong>
+    <a href="#why">Why it matters</a>
+    <a href="#approaches">Native vs cross-platform</a>
+    <a href="#expo">Expo &amp; React Native</a>
+    <a href="#distribution">Distribution &amp; testing</a>
+    <a href="#cicd">Mobile CI/CD &amp; signing</a>
+    <a href="#release">Release management</a>
+    <a href="#concerns">Mobile-specific concerns</a>
+    <a href="#questions">Practice questions</a>
+  </aside>
+
+  <main>
+    <div class="story"><span class="label">&#128214; The story</span>
+      <p>Mobile breaks a comfort the web gave you: you can no longer fix things instantly. The story to internalize is that the <em>user owns the device and the stores own distribution</em> &mdash; so releases are slow, gated, and hard to reverse.</p>
+      <p>Everything follows from that one fact: you cut builds early, test on real devices via TestFlight and Play tracks, roll out in phases, and keep a kill-switch (feature flags) because you can&#8217;t redeploy on demand.</p>
+      <p>You don&#8217;t need to write Swift or Kotlin &mdash; but if your org ships an app, you must plan around these constraints or they&#8217;ll bite you at the worst moment.</p>
+    </div>
+
+      <div class="callout"><span class="label">&#11088; At Google</span><p>If the role is mobile-adjacent, this is <strong>Role-Related Knowledge</strong> &mdash; reason about app delivery and constraints at a leader&#8217;s altitude. See the <a href="google.html">Google Prep</a> page for the full picture.</p></div>
+
+
+    
+      <div class="callout tip"><span class="label">&#129513; Worked mobile system design</span><p>See a full mobile-flavored design walkthrough: <a href="sd-mobile-travel.html">Design a Mobile Travel Booking App</a> &mdash; search fan-out, idempotent booking, and the offline boarding pass.</p></div>
+        <div class="tools"><span class="tlabel">&#128295; Mobile toolchain</span><span class="tool">Expo / EAS</span><span class="tool">Fastlane</span><span class="tool">TestFlight</span><span class="tool">Firebase</span><span class="tool">Crashlytics</span><span class="tool">Sentry</span></div>
+
+    <h2 id="why">Why a director must know this</h2>
+    <p>Mobile breaks several assumptions web engineers take for granted. You can't hot-fix instantly &mdash; a broken release may sit in an app-store review queue for hours or days, and users on old versions linger for months. Distribution goes through Apple and Google with their own rules. Signing and certificates can block a release entirely. If you lead a team that ships an app, these realities shape your planning, your risk, and your release strategy &mdash; so you need at least a high-level command of them.</p>
+
+    <div class="callout">
+      <span class="label">The one-line mental model</span>
+      <p>Web: you control the server, so you ship and roll back in minutes. Mobile: the user controls the device and the stores control distribution, so releases are slower, gated, and hard to reverse &mdash; design for that.</p>
+    </div>
+
+    <h2 id="approaches">Native vs cross-platform</h2>
+    <p>The first architectural decision for any mobile effort. Know the trade-offs well enough to guide it.</p>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Approach</th><th>What it is</th><th>Best when</th></tr></thead>
+        <tbody>
+          <tr><td><strong>Native</strong> (Swift/SwiftUI for iOS, Kotlin/Jetpack Compose for Android)</td><td>Two separate codebases using each platform's own tools.</td><td>Max performance, deep platform features, large teams that can staff both. Games, hardware-heavy or flagship apps.</td></tr>
+          <tr><td><strong>React Native</strong></td><td>One JavaScript/TypeScript codebase rendering real native UI; web-skill reuse.</td><td>Shared logic across platforms, web teams extending to mobile, fast iteration. (Used by many large apps.)</td></tr>
+          <tr><td><strong>Flutter</strong></td><td>One Dart codebase, draws its own UI; very consistent look.</td><td>Pixel-consistent UI across platforms, strong performance, teams willing to adopt Dart.</td></tr>
+          <tr><td><strong>PWA / web wrapper</strong></td><td>A web app installed to the home screen or wrapped in a shell.</td><td>Simple content apps, lowest cost, no app-store dependency &mdash; but limited device access.</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="say">
+      <span class="label">Say it like a director</span>
+      <p>"I'd choose based on the team and the product, not fashion. If we have web/TypeScript strength and want one codebase shipping fast, React Native (often via Expo) is a strong default. If we're performance- or platform-feature-critical and can staff two teams, native wins. I'd name the trade-off: cross-platform buys speed and shared code; native buys ultimate performance and immediate access to new OS features."</p>
+    </div>
+
+    <h2 id="expo">Expo &amp; React Native</h2>
+    <p>Expo is a framework and platform on top of React Native that removes most of the painful native tooling. It's become the default way many teams build and ship React Native apps, so a leader should recognize the pieces.</p>
+    <div class="grid cols-2">
+      <div class="card"><h3>Managed workflow</h3><p>Expo handles the native build setup so developers work mostly in JS/TS. You can still "eject" or add native modules when you need them &mdash; it's no longer all-or-nothing.</p></div>
+      <div class="card"><h3>EAS Build &amp; Submit</h3><p>Expo Application Services builds your iOS/Android binaries in the cloud (no need for every dev to own a Mac for iOS) and submits them to the stores &mdash; a managed mobile CI/CD pipeline.</p></div>
+      <div class="card"><h3>EAS Update (OTA)</h3><p>Over-the-air updates push JavaScript/asset changes straight to users without an app-store review &mdash; great for quick fixes. Caveat: only JS-layer changes; native changes still need a store release.</p></div>
+      <div class="card"><h3>Expo Go vs dev builds</h3><p>Expo Go is a sandbox app for quickly previewing during development; custom dev builds are used once you add native modules. Useful to know when the team discusses their workflow.</p></div>
+    </div>
+    <div class="callout warn">
+      <span class="label">OTA updates &mdash; use with discipline</span>
+      <p>Over-the-air updates (EAS Update, or CodePush historically) are powerful for fixing JS bugs fast, but app stores require that OTA updates don't materially change the app's purpose or bypass review. Treat them for fixes and tweaks, not for shipping whole features around the review process.</p>
+    </div>
+
+    <h2 id="distribution">Distribution &amp; beta testing</h2>
+    <p>Getting the app to users &mdash; and to testers first &mdash; works very differently on each platform. The vocabulary here matters in interviews.</p>
+    <div class="grid cols-2">
+      <div class="card"><h3>TestFlight (iOS)</h3><p>Apple's beta distribution. Internal testers get builds fast; external testers (up to 10,000) require a lighter Beta App Review. The standard way to get an iOS build into testers' hands before public release.</p></div>
+      <div class="card"><h3>Google Play testing tracks</h3><p>Android offers internal, closed, and open testing tracks, plus staged production rollout. Internal testing is near-instant; tracks let you widen the audience gradually.</p></div>
+      <div class="card"><h3>App Store review</h3><p>Apple reviews every public release against its guidelines (often hours to a day, occasionally longer). Rejections happen &mdash; plan schedules with review time and possible rejection in mind.</p></div>
+      <div class="card"><h3>Play Store review</h3><p>Google also reviews submissions; historically faster than Apple but still a gate. Both stores can reject for policy, privacy, or technical issues.</p></div>
+    </div>
+    <div class="say">
+      <span class="label">Say it like a director</span>
+      <p>"I plan mobile releases assuming review is part of the critical path &mdash; we cut the build early, get it into TestFlight and Play's internal track for real-device validation, and never assume a same-day hotfix is possible. For genuine emergencies on the JS layer we have an OTA path, but the store release is the one we schedule around."</p>
+    </div>
+
+    <h2 id="cicd">Mobile CI/CD &amp; code signing</h2>
+    <p>Mobile pipelines have one big extra concern web doesn't: cryptographic signing. Apps must be signed with the right identity or they won't install or publish.</p>
+    <ul class="clean">
+      <li><strong>iOS signing:</strong> certificates and provisioning profiles tie the app to your Apple Developer account and allowed devices. Expired or misconfigured signing is a classic release blocker.</li>
+      <li><strong>Android signing:</strong> a keystore signs the app; Play App Signing lets Google manage the signing key. Losing your keystore (pre-Play-signing) can mean you can't update your own app &mdash; treat signing keys as critical secrets.</li>
+      <li><strong>Fastlane:</strong> a popular open-source tool that automates building, signing, screenshots, and store submission for both platforms.</li>
+      <li><strong>EAS / cloud build:</strong> Expo's managed alternative; builds and submits in the cloud, handling much of the signing complexity.</li>
+      <li><strong>Secrets:</strong> signing keys, certificates, and store API keys are sensitive &mdash; store them in a secrets manager / CI secure store, never in the repo (see <a href="security.html">Security</a>).</li>
+    </ul>
+
+    <h2 id="release">Release management for mobile</h2>
+    <div class="grid cols-3">
+      <div class="card"><h3>Phased / staged rollout</h3><p>Release to a small percentage of users first (Play staged rollout; iOS phased release), watch crash and adoption metrics, then ramp. Your canary for mobile.</p></div>
+      <div class="card"><h3>Versioning</h3><p>A user-facing version (semver, e.g. 3.2.0) plus an ever-incrementing build number the stores require. Know the difference; the build number must go up every submission.</p></div>
+      <div class="card"><h3>Forced &amp; soft upgrades</h3><p>Because old versions linger, apps often check a minimum supported version and prompt (or force) an update. Plan for users who never upgrade.</p></div>
+      <div class="card"><h3>Rollback reality</h3><p>You can't truly "roll back" a shipped app &mdash; you halt the rollout and ship a fixed forward version (or OTA the JS fix). Feature flags and remote config are how you disable a bad feature instantly.</p></div>
+      <div class="card"><h3>Feature flags / remote config</h3><p>Ship code dark and toggle it server-side &mdash; the main way to control risk when you can't redeploy on demand. Essential for mobile.</p></div>
+      <div class="card"><h3>Crash monitoring</h3><p>Tools like Crashlytics/Sentry track crash-free-user rate per version &mdash; a key release-health metric you should watch during a rollout.</p></div>
+    </div>
+    <div class="callout tip">
+      <span class="label">The director's mobile release reflex</span>
+      <p>Cut early, test on real devices via TestFlight / Play tracks, roll out in phases watching crash-free rate, keep risky features behind flags, and assume the store release is slow and one-directional. That posture prevents most mobile release disasters.</p>
+    </div>
+
+    <h2 id="concerns">Mobile-specific concerns to speak to</h2>
+    <div class="grid cols-2">
+      <div class="card"><h3>Offline &amp; sync</h3><p>Phones lose connectivity. Good apps work offline and sync later &mdash; local storage, queues, and conflict handling. Ask "what happens on a train with no signal?"</p></div>
+      <div class="card"><h3>Push notifications</h3><p>Delivered via Apple's APNs and Google's FCM. A re-engagement lever and an operational concern (delivery, opt-in, fatigue).</p></div>
+      <div class="card"><h3>App size &amp; performance</h3><p>Download size affects install rates; cold-start time and UI smoothness (no "jank") affect retention. Battery and memory matter on constrained devices.</p></div>
+      <div class="card"><h3>Privacy &amp; permissions</h3><p>Apple's App Tracking Transparency and privacy "nutrition labels", Google's Data Safety section, and runtime permissions. Mishandling privacy gets you rejected or fined.</p></div>
+      <div class="card"><h3>On-device security</h3><p>Secrets live in the iOS Keychain / Android Keystore, not plain storage. Consider certificate pinning and that the client is untrusted &mdash; never hide real secrets in the app binary.</p></div>
+      <div class="card"><h3>Fragmentation</h3><p>Especially on Android: many OS versions, screen sizes, and device capabilities. Define a supported-device matrix and test against it.</p></div>
+    </div>
+
+    <h2 id="questions">Practice questions</h2>
+    <div class="search"><input type="text" data-search placeholder="Search these questions&hellip;" /></div>
+    <div class="btn-row" style="margin-top:0">
+      <button class="btn" data-open-all>Expand all</button>
+      <button class="btn" data-close-all>Collapse all</button>
+    </div>
+    <p class="no-results">No questions match your search.</p>
+
+    <div data-search-group>
+      <details class="qa" data-searchable data-level="1">
+        <summary>What's the difference between native and cross-platform mobile development?<span class="qa-badge core">Core</span></summary>
+        <div class="body">
+          <p>Native means building separately for each platform with its own tools &mdash; Swift/SwiftUI on iOS, Kotlin/Compose on Android &mdash; for maximum performance and immediate access to new OS features, at the cost of two codebases. Cross-platform (React Native, Flutter) means one codebase that targets both, trading some performance and platform-immediacy for shared code, faster iteration, and a smaller team. As a leader I'd choose based on our team's skills and the product's demands, and I'd name that trade-off explicitly rather than picking a framework for its hype.</p>
+        </div>
+      </details>
+      <details class="qa" data-searchable data-level="1">
+        <summary>What is TestFlight and why does it matter?<span class="qa-badge core">Core</span></summary>
+        <div class="body">
+          <p>TestFlight is Apple's beta-distribution service: it lets us get pre-release iOS builds onto real testers' devices &mdash; internal testers almost immediately, and up to 10,000 external testers after a light beta review &mdash; before a public App Store release. It matters because it's how we validate a build on real hardware and gather feedback safely. The Android equivalent is Google Play's internal/closed/open testing tracks. I treat getting a build into these as a standard step in every mobile release, not an afterthought.</p>
+        </div>
+      </details>
+      <details class="qa" data-searchable data-level="2">
+        <summary>How does releasing a mobile app differ from releasing a web service, and how does that change your planning?<span class="qa-badge deep">Deep</span></summary>
+        <div class="body">
+          <p>Three big differences. First, distribution is gated &mdash; Apple and Google review releases, so "ship now" can mean hours or days. Second, you can't force users to upgrade, so old versions live on for months and your backend must support them. Third, rollback isn't instant &mdash; you halt a staged rollout and ship a fix forward, or OTA a JS fix. So I plan with review time and possible rejection in the schedule, keep risky features behind feature flags / remote config, roll out in phases watching crash-free rate, and design APIs to be backward-compatible. The mobile release posture is fundamentally more cautious than web.</p>
+          <div class="say"><span class="label">Say it like a director</span><p>"On mobile I assume the store is in my critical path and that I can't hotfix on demand &mdash; so we cut early, roll out gradually, and keep an instant kill-switch via flags rather than relying on redeploys."</p></div>
+        </div>
+      </details>
+      <details class="qa" data-searchable data-level="2">
+        <summary>What are over-the-air (OTA) updates, and what are their limits?<span class="qa-badge core">Core</span></summary>
+        <div class="body">
+          <p>OTA updates (e.g. Expo's EAS Update, or CodePush historically) push JavaScript and asset changes directly to installed apps without going through app-store review &mdash; great for fast bug fixes. The key limit is that they only cover the JS/content layer; anything touching native code still requires a full store release. There's also a policy boundary: stores require that OTA updates don't materially change the app's purpose or be used to dodge review. So I'd use OTA for quick fixes and tweaks with discipline, and never to smuggle whole features past the review process.</p>
+        </div>
+      </details>
+      <details class="qa" data-searchable data-level="2">
+        <summary>Why is code signing such a big deal in mobile, and how do you manage the risk?<span class="qa-badge trap">Trap</span></summary>
+        <div class="body">
+          <p>Apps must be cryptographically signed or they won't install or publish &mdash; iOS uses certificates and provisioning profiles, Android uses a keystore. Expired certificates or a lost keystore are classic, painful release blockers; pre-Play-App-Signing, losing your keystore could mean you literally can't update your own app. I manage it by treating signing keys as critical secrets in a secure store, using Google's Play App Signing and managed services (EAS, or Fastlane match) so keys aren't scattered on laptops, and monitoring certificate expiry so it never surprises us mid-release.</p>
+        </div>
+      </details>
+      <details class="qa" data-searchable data-level="3">
+        <summary>Your org is starting a mobile app from scratch. How do you decide the tech and set it up to ship reliably?<span class="qa-badge deep">Deep</span></summary>
+        <div class="body">
+          <p>I'd start from the team and the product, not the framework. If we have strong web/TypeScript talent and want one codebase shipping quickly, React Native via Expo is a strong default &mdash; EAS gives us cloud builds and OTA without every dev owning a Mac. If we're performance- or platform-critical and can staff two teams, native. Then I'd invest early in the things that make mobile reliable: a CI/CD pipeline with managed signing, TestFlight/Play internal tracks wired in, staged rollouts, crash monitoring on crash-free-user rate, and feature flags so we can disable bad features without a release. I'd also set a supported-device and minimum-version policy up front. The goal is that shipping becomes routine and reversible despite the store constraints.</p>
+        </div>
+      </details>
+      <details class="qa" data-searchable data-level="3">
+        <summary>A critical bug is live in your mobile app. Walk me through your response.<span class="qa-badge trap">Trap</span></summary>
+        <div class="body">
+          <p>First, contain without waiting for a store release: if the feature is behind a flag or remote config, disable it instantly; if it's a JS-layer issue and we use OTA, push the fix that way. In parallel, halt any in-progress staged rollout so we stop widening the blast radius. I'd assess impact via crash-free rate and analytics by app version. Then ship the proper fixed build through review &mdash; flagging Apple/Google for expedited review if it's severe &mdash; while communicating clearly to stakeholders and, if needed, users. Afterward, a blameless post-mortem: why did it reach production, and what guardrail (better testing on real devices, a flag, a staged rollout) prevents the class of bug. The lesson I'd reinforce: on mobile, the kill-switch is the flag, not the deploy.</p>
+        </div>
+      </details>
+    </div>
+
+    
+    <div class="recap"><span class="label">&#129504; Remember it</span>
+      <p>On mobile, <span class="hook">the store is in your critical path and you can&#8217;t hotfix</span> &mdash; design for it.</p>
+      <ul>
+        <li>Cut early, test on real devices, roll out in phases.</li>
+        <li>Feature flags are your kill-switch, not a redeploy.</li>
+        <li>Choose native vs cross-platform by team + product, not hype.</li>
+      </ul>
+    </div>
+
+    <div class="pagenav">
+      <a class="card" href="security.html"><span class="tag">&larr; Related</span><h3>Security</h3></a>
+      <a class="card" href="behavioral.html"><span class="tag">Next &rarr;</span><h3>Behavioral</h3></a>
+    </div>
+
+  </main>
+</div>
+</div>
+
+<script src="assets/js/main.js"></script>
+</body>
+</html>

@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="warm">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Design a Feature-Flag / Config Service — Director's Edge</title>
+<meta name="description" content="System design deep-dive: Design a Feature-Flag / Config Service." />
+<link rel="preconnect" href="https://fonts.googleapis.com" /><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="assets/css/styles.css" />
+</head>
+<body data-theme="warm">
+<section class="hero"><span class="eyebrow">System design deep-dive</span><h1>Design a Feature-Flag / Config Service</h1><p class="lead">A deep-dive into flags at scale: local in-memory evaluation, fast change propagation, and deterministic % rollouts.</p></section>
+<div class="wrap section"><div class="page-layout">
+  <aside class="toc"><strong>On this page</strong>
+    <a href="#think">How to think (step by step)</a>
+    <a href="#reqs">1 · Requirements</a>
+    <a href="#arch">2 · Architecture</a>
+    <a href="#hard">3 · The hard part</a>
+    <a href="#trade">4 · Trade-offs</a>
+    <a href="#subsystems">Key sub-systems</a>
+    <a href="#bottlenecks">Bottlenecks</a>
+    <a href="#levels">Senior / Staff / Principal</a>
+    <a href="#faq">Follow-up Q&amp;A</a>
+  </aside>
+  <main>
+    <div class="callout"><span class="label">&#11088; At Google</span><p>Drive it top-down: requirements &rarr; scale &rarr; design &rarr; bottleneck &rarr; trade-offs. Back to <a href="system-design-cases.html">System Design II</a>.</p></div>
+    <div class="story"><span class="label">&#128214; The story</span>
+      <p>A flag is read on practically every request, so it must cost nothing to evaluate &mdash; yet a flip must reach thousands of instances almost instantly. Those two goals pull in opposite directions.</p>
+      <p>The resolution: each service caches all flags locally and evaluates in memory (zero latency), while a push channel keeps those caches fresh within seconds. Deterministic hashing keeps a user in a stable rollout bucket.</p>
+    </div>
+            <div class="tools"><span class="tlabel">&#128295; Typical tools</span><span class="tool">LaunchDarkly</span><span class="tool">Unleash</span><span class="tool">Redis</span><span class="tool">gRPC / SSE</span></div>
+
+    <h2 id="think">How to think about it &mdash; step by step</h2>
+    <div class="steps">
+      <div class="step"><h4>Realize it's read on every request</h4><p>Code checks 'is this flag on?' constantly. <span class="why">Why:</span> the check must cost basically nothing.</p></div>
+      <div class="step"><h4>Keep evaluation local</h4><p>Each service caches all flags in memory and decides locally &mdash; no network call per check. <span class="why">Why:</span> a network hop per request would be far too slow.</p></div>
+      <div class="step"><h4>Solve the freshness problem</h4><p>Push changes to those caches (or poll with a short timer) so a flip reaches everyone in seconds. <span class="why">Why:</span> the whole point of flags is changing behavior without a deploy.</p></div>
+      <div class="step"><h4>Make rollouts deterministic</h4><p>Bucket users by hashing their ID, so the same user always lands in the same % group. <span class="why">Why:</span> users shouldn't flicker in and out of a feature.</p></div>
+      <div class="step"><h4>Accept brief staleness</h4><p>A change may take a second or two to reach every server. <span class="why">Why:</span> for features that's totally fine, and it buys huge speed.</p></div>
+    </div>
+
+    <h2 id="reqs">1 &middot; Requirements</h2>
+<p><strong>Functional:</strong> turn features on/off, run % rollouts and targeting (by user, region) without deploys. <strong>Non-functional:</strong> read on nearly every request &mdash; must be ultra-low-latency &mdash; with changes propagating in seconds.</p>    <h2 id="arch">2 &middot; Architecture</h2>
+    <figure class="diagram">
+<svg viewBox="0 0 760 170" role="img" aria-label="Feature flag service"><defs><marker id="m" markerWidth="9" markerHeight="9" refX="7" refY="4.5" orient="auto"><path d="M0,0 L9,4.5 L0,9 z" fill="var(--accent)"/></marker></defs><rect class="svg-good" x="8" y="60" width="96" height="50" rx="9"/><text class="svg-txt" x="56" y="83" text-anchor="middle">Services</text><text class="svg-sub" x="56" y="100" text-anchor="middle">many</text><rect class="svg-accent" x="140" y="60" width="130" height="50" rx="9"/><text class="svg-txt" x="205" y="83" text-anchor="middle">Flag SDK</text><text class="svg-sub" x="205" y="100" text-anchor="middle">local cache</text><rect class="svg-accent2" x="310" y="60" width="140" height="50" rx="9"/><text class="svg-txt" x="380" y="83" text-anchor="middle">Flag service</text><text class="svg-sub" x="380" y="100" text-anchor="middle">rules API</text><rect class="svg-box" x="490" y="16" width="150" height="46" rx="9"/><text class="svg-txt" x="565" y="37" text-anchor="middle">Config store</text><text class="svg-sub" x="565" y="54" text-anchor="middle">flags</text><rect class="svg-box" x="490" y="100" width="150" height="46" rx="9"/><text class="svg-txt" x="565" y="121" text-anchor="middle">Stream / pub-sub</text><text class="svg-sub" x="565" y="138" text-anchor="middle">push updates</text><line class="svg-line-acc" x1="104" y1="85" x2="138" y2="85" marker-end="url(#m)"/><line class="svg-line-acc" x1="270" y1="85" x2="308" y2="85" marker-end="url(#m)"/><line class="svg-line-acc" x1="450" y1="76" x2="488" y2="40" marker-end="url(#m)"/><line class="svg-line-acc" x1="450" y1="90" x2="488" y2="118" marker-end="url(#m)"/><path class="svg-line-acc" d="M565,146 L565,158 L207,158 L207,112" fill="none" marker-end="url(#m)"/></svg>
+      <figcaption>Each service embeds an SDK that caches flags locally (so evaluation is in-memory, zero-latency). The flag service stores rules and pushes changes to SDKs via a streaming channel or short-TTL polling, so a flag flip reaches the fleet in seconds.</figcaption>
+    </figure>
+    <h2 id="hard">3 &middot; The hard part &mdash; fast, fresh propagation</h2>
+    <ul class="clean">
+      <li><strong>Local evaluation</strong>: the SDK holds all flags in memory and evaluates targeting rules locally &mdash; no network call per check.</li>
+      <li><strong>Propagation</strong>: push (SSE/websocket/pub-sub) for instant updates, or poll with a short TTL; either way tolerate brief staleness.</li>
+      <li><strong>Targeting</strong>: deterministic bucketing (hash(userId) % 100) so a user stays in the same rollout cohort.</li>
+    </ul>
+    <h2 id="trade">4 &middot; Trade-offs</h2>
+    <ul class="clean">
+      <li>Push (instant, more infra) vs poll (simple, laggy, more load).</li>
+      <li>Local cache means eventual consistency on flag changes &mdash; acceptable for almost all features.</li>
+    </ul>
+        <h2 id="subsystems">Key sub-systems</h2>
+    <ul class="clean">
+      <li><strong>Flag store</strong> &mdash; rules, variants, targeting.</li>
+      <li><strong>Management API/UI</strong> &mdash; create/edit flags and rollouts.</li>
+      <li><strong>Client SDK</strong> &mdash; caches flags, evaluates locally.</li>
+      <li><strong>Propagation channel</strong> &mdash; streaming push or short-TTL poll.</li>
+      <li><strong>Analytics</strong> &mdash; exposure logging for experiments.</li>
+    </ul>
+    <h2 id="bottlenecks">Bottlenecks &amp; what to optimize next</h2>
+    <ul class="clean">
+      <li>A per-request network call would be the bottleneck &mdash; evaluate locally in memory.</li>
+      <li>Propagation lag is the trade &mdash; push updates to refresh caches within seconds.</li>
+    </ul>
+    <h2 id="levels">Senior &middot; Staff &middot; Principal</h2>
+    <div class="ladder">
+      <div class="lv s"><span class="tier">Senior</span><p>Builds local evaluation + a polling refresh and deterministic bucketing.</p></div>
+      <div class="lv t"><span class="tier">Staff</span><p>Handles instant push propagation, exposure logging, and consistent % rollouts via hashing.</p></div>
+      <div class="lv p"><span class="tier">Principal</span><p>Raises experimentation/stats rigor, flag-debt governance, and audit/permissioning of who can flip what.</p></div>
+    </div>
+    <h2 id="faq">Common follow-up questions</h2>
+    <details class="qa"><summary>How does a flag change reach thousands of servers fast?</summary><div class="body"><p>SDKs subscribe to a push channel (or poll with a short TTL); the change refreshes their in-memory cache in seconds.</p></div></details>
+    <details class="qa"><summary>How do you keep a user in a stable rollout group?</summary><div class="body"><p>Bucket by hash(userId) % 100 so the same user always lands in the same cohort across requests and sessions.</p></div></details>
+    <details class="qa"><summary>Isn't local caching inconsistent?</summary><div class="body"><p>Briefly, yes &mdash; flags are eventually consistent. That's acceptable for nearly all features and buys zero-latency evaluation.</p></div></details>
+
+    <div class="recap"><span class="label">&#129504; Remember it</span>
+      <p>Feature flags = <span class="hook">local in-memory eval + fast push propagation</span>.</p>
+      <ul>
+        <li>SDK caches flags; evaluation is in-memory, zero-latency.</li>
+        <li>Push or short-TTL poll keeps caches fresh in seconds.</li>
+        <li>Deterministic bucketing for stable % rollouts.</li>
+      </ul>
+    </div>
+
+    <div class="pagenav">
+      <a class="card" href="sd-unique-id.html"><span class="tag">&larr; Previous</span><h3>Unique ID</h3></a>
+      <a class="card" href="sd-distributed-cache.html"><span class="tag">Next &rarr;</span><h3>Distributed Cache</h3></a>
+    </div>
+  </main>
+</div></div>
+<script src="assets/js/main.js"></script>
+</body>
+</html>

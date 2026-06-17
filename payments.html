@@ -1,0 +1,286 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="warm">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Payments Tech — Director's Edge</title>
+<meta name="description" content="Payments technology interview prep for a Director / VP Engineering role: PCI DSS, tokenisation, commercial cards, the card-transaction flow, 3DS/SCA, interchange, chargebacks and reconciliation — in question-and-answer form." />
+<link rel="preconnect" href="https://fonts.googleapis.com" /><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="assets/css/styles.css" />
+</head>
+<body data-theme="warm">
+
+<section class="hero">
+  <span class="eyebrow">&#128179; Domain &middot; Payments technology</span>
+  <h1>Payments for a Director / VP Engineering</h1>
+  <p class="lead">The vocabulary and judgment a payments engineering leader is expected to have &mdash; PCI DSS, tokenisation, commercial cards, the money-movement flow, and the compliance, fraud and reconciliation decisions you own. In question-and-answer form, filterable by level.</p>
+</section>
+
+<div class="wrap section">
+<div class="page-layout">
+  <aside class="toc"><strong>On this page</strong>
+    <a href="#map">The payments map</a>
+    <a href="#tokenisation">Tokenisation in practice</a>
+    <a href="#questions">Q&amp;A bank</a>
+  </aside>
+  <main>
+    <div class="tools"><span class="tlabel">&#128295; The ecosystem</span><span class="tool">Visa / Mastercard</span><span class="tool">Stripe</span><span class="tool">Adyen</span><span class="tool">Braintree</span><span class="tool">PCI DSS</span><span class="tool">HSM</span><span class="tool">3-D Secure</span><span class="tool">EMV</span><span class="tool">Apple/Google Pay</span></div>
+
+    <div class="story"><span class="label">&#128214; The story</span>
+      <p>Payments looks like &ldquo;take a card number, charge it.&rdquo; In reality you&#8217;re moving regulated money through a chain of banks and networks, under strict rules, where a mistake means lost funds, fines, or a frozen merchant account.</p>
+      <p>Two ideas dominate a leader&#8217;s mental model: <em>keep card data out of your systems</em> (PCI scope &amp; tokenisation), and <em>treat money movement as exactly-once and auditable</em> (idempotency, ledgers, reconciliation). Everything below hangs off those two.</p>
+    </div>
+
+    <h2 id="map">The payments map &mdash; players &amp; flow</h2>
+    <figure class="diagram">
+      <svg viewBox="0 0 900 180" role="img" aria-label="Card payment flow from cardholder to issuer and back">
+        <defs><marker id="arP" markerWidth="9" markerHeight="9" refX="7" refY="4.5" orient="auto"><path d="M0,0 L9,4.5 L0,9 z" fill="var(--accent)"/></marker></defs>
+        <rect class="svg-box" x="6" y="44" width="104" height="48" rx="9"/><text class="svg-txt" x="58" y="64" text-anchor="middle">Cardholder</text><text class="svg-sub" x="58" y="80" text-anchor="middle">pays</text>
+        <rect class="svg-accent" x="130" y="44" width="104" height="48" rx="9"/><text class="svg-txt" x="182" y="64" text-anchor="middle">Merchant</text><text class="svg-sub" x="182" y="80" text-anchor="middle">your app</text>
+        <rect class="svg-accent" x="254" y="44" width="120" height="48" rx="9"/><text class="svg-txt" x="314" y="64" text-anchor="middle">Gateway / PSP</text><text class="svg-sub" x="314" y="80" text-anchor="middle">Stripe / Adyen</text>
+        <rect class="svg-box" x="394" y="44" width="110" height="48" rx="9"/><text class="svg-txt" x="449" y="64" text-anchor="middle">Acquirer</text><text class="svg-sub" x="449" y="80" text-anchor="middle">merchant bank</text>
+        <rect class="svg-accent2" x="524" y="44" width="120" height="48" rx="9"/><text class="svg-txt" x="584" y="64" text-anchor="middle">Card network</text><text class="svg-sub" x="584" y="80" text-anchor="middle">Visa / MC</text>
+        <rect class="svg-box" x="664" y="44" width="120" height="48" rx="9"/><text class="svg-txt" x="724" y="64" text-anchor="middle">Issuer</text><text class="svg-sub" x="724" y="80" text-anchor="middle">cardholder bank</text>
+        <g class="svg-line-acc">
+          <line x1="110" y1="68" x2="128" y2="68" marker-end="url(#arP)"/>
+          <line x1="234" y1="68" x2="252" y2="68" marker-end="url(#arP)"/>
+          <line x1="374" y1="68" x2="392" y2="68" marker-end="url(#arP)"/>
+          <line x1="504" y1="68" x2="522" y2="68" marker-end="url(#arP)"/>
+          <line x1="644" y1="68" x2="662" y2="68" marker-end="url(#arP)"/>
+        </g>
+        <text class="svg-sub" x="450" y="24" text-anchor="middle">1) Authorization &mdash; is the money there &amp; the card valid? (approve/decline in ~seconds)</text>
+        <text class="svg-sub" x="450" y="128" text-anchor="middle">2) Clearing &amp; 3) Settlement &mdash; batched later (T+1&hellip;T+2): money actually moves issuer &rarr; acquirer &rarr; merchant, minus fees.</text>
+      </svg>
+      <figcaption>Authorization is the instant &ldquo;yes/no&rdquo;; the actual money movement (clearing &amp; settlement) happens in batches a day or two later. Knowing these are separate is fundamental.</figcaption>
+    </figure>
+
+    <h2 id="tokenisation">Tokenisation in practice &mdash; a worked example</h2>
+    <p>This is the question every payments engineer must be able to answer concretely. Let&#8217;s walk a real card from the customer&#8217;s browser all the way to your database and UI.</p>
+
+    <div class="example"><span class="label">&#128205; What a card vs a token actually look like</span>
+      <div class="kvs">
+        <span class="k">Real PAN</span><span class="v">4111 1111 1111 1111</span>
+        <span class="k">Expiry / CVV</span><span class="v">12/27 &middot; 123  (CVV is NEVER stored, by anyone)</span>
+        <span class="k">PSP token</span><span class="v">pm_1Qk7Xy2eZvKYlo2C0abcd123  (Stripe PaymentMethod)</span>
+        <span class="k">Network token</span><span class="v">4895 3700 0000 1234  (looks card-like, issued by Visa/MC token service)</span>
+      </div>
+      <p style="margin:6px 0 0">(4111&hellip; is the well-known Visa <em>test</em> number, not a real card.) A PSP token is opaque &mdash; useless to anyone but your PSP. A network token is PAN-shaped but is a stand-in that the networks can map to the real card.</p>
+    </div>
+
+    <h3>Who tokenises &mdash; and how you call them</h3>
+    <p>You don&#8217;t tokenise yourself (doing so means holding the real PAN, which drags you into the cardholder data environment below). Your <strong>PSP</strong> (Stripe, Adyen, Braintree) or a dedicated <strong>token service</strong> does it. The key trick: the card goes <em>from the browser straight to the PSP</em> via their hosted field/SDK &mdash; <strong>your server never sees the PAN</strong>.</p>
+    <pre class="code"><span class="c">// 1) Browser: the card is typed into a Stripe-hosted field (an iframe).</span>
+<span class="c">//    Your JS never reads the digits; Stripe.js sends them to Stripe directly.</span>
+const { paymentMethod } = await stripe.createPaymentMethod({
+  type: 'card', card: cardElement
+});
+<span class="c">// paymentMethod.id        => "pm_1Qk7Xy2eZvKYlo2C0abcd123"   (the token)</span>
+<span class="c">// paymentMethod.card.last4 => "1111"   brand => "visa"   exp => 12 / 2027</span>
+
+<span class="c">// 2) Front-end sends ONLY the token to your backend (no PAN ever):</span>
+await fetch('/cards', { method: 'POST',
+  body: JSON.stringify({ token: paymentMethod.id }) });
+
+<span class="c">// 3) Later, charge the saved card server-side using the token:</span>
+stripe.paymentIntents.create({
+  amount: 4999, currency: 'usd',
+  customer: 'cus_J9x...', payment_method: 'pm_1Qk7Xy2eZvKYlo2C0abcd123',
+  off_session: true, confirm: true
+});</pre>
+    <p>So you call the PSP API with the <em>token</em>, not the card. The only component that ever touched the raw PAN was the PSP&#8217;s iframe in the browser.</p>
+
+    <h3>What you store, and what you show</h3>
+    <p>You store the <strong>token plus a little display metadata</strong> &mdash; never the PAN, never the CVV:</p>
+    <pre class="code"><span class="c">-- your cards table (no PAN, no CVV anywhere)</span>
+card_id      : crd_8f3a2b
+customer_id  : cus_J9x4Qm
+psp_token    : pm_1Qk7Xy2eZvKYlo2C0abcd123
+brand        : visa
+last4        : 1111
+exp_month    : 12
+exp_year     : 2027
+fingerprint  : Xt5eQ9...     <span class="c">-- PSP-supplied, to detect the same card</span></pre>
+    <p>On the UI you show the <strong>brand + last 4</strong>, never the token and never the full PAN:</p>
+    <div class="example"><span class="label">&#128179; What the UI renders</span>
+      <p style="font-family:var(--mono);font-size:1.05rem;margin:0">Visa &bull;&bull;&bull;&bull; &bull;&bull;&bull;&bull; &bull;&bull;&bull;&bull; 1111 &nbsp; exp 12/27</p>
+    </div>
+    <p><strong>Where does &ldquo;1111&rdquo; come from?</strong> The PSP returns <code>last4</code> in the tokenisation response (step 1 above); you save it next to the token and the UI just reads it from your DB. You never derive the last 4 from a real PAN yourself &mdash; you don&#8217;t have the PAN.</p>
+
+    <h3>The &ldquo;eye icon&rdquo; &mdash; can you reveal the full 16 digits?</h3>
+    <p>Here&#8217;s the part people get wrong. For a normal merchant, <strong>there is no full PAN to reveal</strong> &mdash; you only have a token and the last 4, by design. So the honest answer for most products is: the eye icon doesn&#8217;t exist, or it just toggles the masked value. That&#8217;s a feature, not a gap.</p>
+    <p>Only an entity that is <em>itself</em> PCI-DSS compliant and holds the PAN in a vault (a processor, or a large merchant operating a CDE) can reveal it &mdash; and even then it&#8217;s tightly controlled:</p>
+    <ul class="clean">
+      <li>The click calls a <strong>server-side detokenise</strong> endpoint inside the CDE, which asks the token vault/HSM for the PAN.</li>
+      <li>It requires <strong>step-up auth</strong> (re-authenticate / MFA) and strict role-based access &mdash; only specific roles, for a specific reason.</li>
+      <li>The PAN is returned over TLS to a view that is <strong>never logged, never cached</strong>, and re-masks after a few seconds.</li>
+      <li>Every reveal is <strong>audit-logged</strong> (who, when, which card, why) for the PCI access-control requirements.</li>
+    </ul>
+    <div class="say"><span class="label">Say it like a director</span><p>&ldquo;In our merchant apps there&#8217;s deliberately no &lsquo;show full card&rsquo; &mdash; we hold a token and last four, never the PAN, so it&#8217;s impossible by design. The only place full-PAN reveal exists is inside our PCI-audited vault service, behind step-up auth, least-privilege roles, and an audit trail &mdash; and it never goes near a log.&rdquo;</p></div>
+
+    <h3>What is the CDE, and do you split the app?</h3>
+    <p>The <strong>CDE (Cardholder Data Environment)</strong> is every system that stores, processes, or transmits cardholder data &mdash; plus anything connected to it. <em>Everything in the CDE is in PCI scope</em> and must be secured, segmented, and audited.</p>
+    <p>You do <strong>not</strong> replicate your whole app into the CDE. The pattern is <strong>segmentation</strong>: keep the entire app <em>outside</em> the CDE and let it handle only tokens; isolate the tiny piece that ever touches a PAN into a minimal, network-segmented CDE zone.</p>
+    <pre class="code"><span class="c">NON-CDE (out of PCI scope)            CDE (in scope, segmented + audited)</span>
++-----------------------------+       +------------------------------------+
+|  Web app, APIs, most        |  tok  |  Card-capture proxy / token vault  |
+|  microservices, your DB     |  ---> |  + HSM   (handles real PAN only)   |
+|  (only ever see tokens)     |       |  firewalled, minimal access, own   |
++-----------------------------+       |  logging, separately PCI-audited   |
+                                       +------------------------------------+</pre>
+    <p>Most teams go further and have <strong>no CDE at all</strong>: by using the PSP&#8217;s hosted fields + vault, card data never touches any of your systems, so you qualify for the lightest <strong>SAQ A</strong>. You only stand up a CDE if you genuinely must hold the PAN &mdash; and then you make it as small as possible.</p>
+
+    <h3>What can (and cannot) go in logs</h3>
+    <div class="good-bad">
+      <div class="gb ok"><h4>&#10003; Safe to log</h4>
+        <p>Token (<code>pm_1Qk7&hellip;</code>), <code>last4</code> (1111), brand, expiry, auth code, decline reason, transaction id, customer id, amount. A masked PAN only if truly needed (<code>411111******1111</code> &mdash; max first-6 + last-4).</p></div>
+      <div class="gb no"><h4>&#10007; Never log (PCI)</h4>
+        <p>The full PAN, the <strong>CVV/CVC</strong> (never stored at all, anywhere), the PIN/PIN block, and full magnetic-stripe/track data &mdash; nothing that could reconstruct the card.</p></div>
+    </div>
+    <pre class="code"><span class="c">// GOOD</span>
+INFO payment ok txn=pi_3Qk... card=pm_1Qk7... brand=visa last4=1111 amt=4999 auth=A12345
+<span class="c">// BAD &mdash; this is a PCI violation and a breach waiting to happen</span>
+INFO charge pan=4111111111111111 cvv=123 exp=12/27   <span class="c">&lt;-- NEVER</span></pre>
+    <p>Practically you enforce this with logging filters/redaction (regex that masks anything PAN-shaped), code review, and scanning &mdash; because the most common card-data leak isn&#8217;t a hacker, it&#8217;s a developer logging the request body.</p>
+
+        <div class="example" data-ex-added><span class="label">&#128205; Real example &mdash; an idempotency key</span>
+      <p>A user taps &ldquo;Pay&rdquo;, the network hiccups, the app retries. Without protection you charge them twice. The fix: the client sends a unique <strong>Idempotency-Key</strong>, and the server promises that the same key never charges twice:</p>
+      <pre class="code"><span class="c">// First attempt</span>
+POST /v1/charges
+Idempotency-Key: a1b2c3d4-5e6f-7890-uniq-per-payment
+{ "amount": 4999, "currency": "usd", "source": "tok_visa" }
+   &rarr; 200 OK   { "id": "ch_1Nx...", "status": "succeeded" }   <span class="c">// server stores key &rarr; result</span>
+
+<span class="c">// Retry after timeout &mdash; SAME key</span>
+POST /v1/charges
+Idempotency-Key: a1b2c3d4-5e6f-7890-uniq-per-payment
+{ "amount": 4999, "currency": "usd", "source": "tok_visa" }
+   &rarr; 200 OK   { "id": "ch_1Nx...", "status": "succeeded" }   <span class="c">// SAME charge returned, NOT a new one</span></pre>
+      <p><strong>What this teaches:</strong> the server records each idempotency key with the response it produced (typically for 24h). A repeat with the same key replays the stored result instead of doing the work again &mdash; so retries, double-clicks, and at-least-once webhooks are safe. The client must generate one key <em>per logical payment</em> (a fresh UUID per checkout, reused only across retries of that same checkout). Stripe, PayPal, and Adyen all work this way; it&#8217;s a standard Director-level answer to &ldquo;how do you stop double charges?&rdquo;</p>
+    </div>
+
+    <h2 id="questions">Q&amp;A bank</h2>
+    <div class="search"><input type="text" data-search placeholder="Search payments questions&hellip;" /></div>
+    <div class="btn-row" style="margin-top:0">
+      <button class="btn" data-open-all>Expand all</button>
+      <button class="btn" data-close-all>Collapse all</button>
+    </div>
+    <p class="no-results">No questions match your search.</p>
+
+    <div data-search-group>
+      <details class="qa" data-searchable data-level="1">
+        <summary>What is PCI DSS, and who has to comply?<span class="qa-badge core">Core</span></summary>
+        <div class="body"><p>PCI DSS (Payment Card Industry Data Security Standard) is the card networks&#8217; security standard for anyone who stores, processes, or transmits cardholder data. It&#8217;s not a law but a contractual requirement &mdash; fail it and you face fines, higher fees, or losing the ability to take cards. As a leader I frame it as: <em>any system that touches a card number (PAN) is &lsquo;in scope&rsquo; and must be secured and audited</em>, so the cheapest path is to touch as little card data as possible.</p></div>
+      </details>
+      <details class="qa" data-searchable data-level="2">
+        <summary>What are the PCI merchant levels and SAQ types?<span class="qa-badge deep">Deep</span></summary>
+        <div class="body"><p>Merchants are tiered by annual card volume into <strong>Levels 1&ndash;4</strong> (Level 1 = the largest, &gt;6M transactions/yr, requiring an on-site audit by a QSA and a Report on Compliance; smaller levels can self-assess). Self-assessment uses a <strong>SAQ</strong> (Self-Assessment Questionnaire) whose type depends on how you handle cards &mdash; e.g. <strong>SAQ A</strong> (fully outsourced, card data never touches you), <strong>SAQ A-EP</strong> (your page orchestrates but a PSP captures), up to <strong>SAQ D</strong> (you handle card data directly, the heaviest). The leadership goal is to qualify for the lightest SAQ.</p></div>
+      </details>
+      <details class="qa" data-searchable data-level="3">
+        <summary>How do you reduce PCI scope?<span class="qa-badge deep">Deep</span></summary>
+        <div class="body"><p>Scope = every system that can see card data, so you shrink it by never letting raw card data enter your systems. Levers: <strong>hosted payment fields / iframes</strong> (the card field is served by your PSP, so the PAN goes straight to them), <strong>redirect</strong> to a hosted checkout, <strong>tokenisation</strong> so you store a token not a card, and <strong>P2PE</strong> (point-to-point encryption) for card-present so the terminal encrypts before your network sees anything. Done well, you drop from SAQ D to SAQ A.</p>
+        <div class="say"><span class="label">Say it like a director</span><p>&ldquo;My default architecture keeps us out of PCI scope: card data goes from the customer&#8217;s browser straight to our PSP via hosted fields, we store only network tokens, and our servers never see a PAN. That turns a multi-month SAQ D audit into a light SAQ A.&rdquo;</p></div></div>
+      </details>
+      <details class="qa" data-searchable data-level="1">
+        <summary>What is tokenisation, and how is it different from encryption?<span class="qa-badge core">Core</span></summary>
+        <div class="body"><p>Tokenisation replaces a card number with a meaningless surrogate &mdash; a <strong>token</strong> &mdash; that maps back to the real PAN only inside a secure vault you don&#8217;t control. Encryption is reversible with a key; a token is <em>not</em> mathematically derived from the card, so a stolen token is useless on its own. That&#8217;s why tokenisation is the preferred way to store &ldquo;cards on file&rdquo;: you keep a token for repeat billing while the actual PAN lives with your PSP or a token service, slashing your PCI scope and breach impact.</p></div>
+      </details>
+      <details class="qa" data-searchable data-level="3">
+        <summary>Network tokens vs PSP/vault tokens — what's the difference?<span class="qa-badge deep">Deep</span></summary>
+        <div class="body"><p>A <strong>PSP/vault token</strong> is issued by your processor (e.g. Stripe) and is meaningful only to them. A <strong>network token</strong> is issued by the card networks (Visa/Mastercard via their Token Service) and replaces the PAN across the ecosystem &mdash; it auto-updates when a card is reissued or expires, which lifts authorisation rates and reduces churn on subscriptions. As a leader I care because network tokens measurably improve approval rates and reduce failed renewals, so I&#8217;d push our PSP to enable them.</p></div>
+      </details>
+      <details class="qa" data-searchable data-level="1">
+        <summary>Walk me through a card payment end to end.<span class="qa-badge core">Core</span></summary>
+        <div class="body"><p>Two phases. <strong>Authorization</strong> (seconds): the cardholder pays, the merchant sends the request through a gateway/PSP to the acquirer, across the card network, to the issuer, which checks funds/fraud and returns approve or decline. Money hasn&#8217;t moved yet &mdash; it&#8217;s just reserved. <strong>Clearing &amp; settlement</strong> (batched, T+1&ndash;T+2): the approved transactions are submitted, the network nets out who owes whom, and the issuer pays the acquirer, who pays the merchant &mdash; minus interchange and fees. Separating &ldquo;auth&rdquo; from &ldquo;settlement&rdquo; is the single most important mental model.</p></div>
+      </details>
+      <details class="qa" data-searchable data-level="1">
+        <summary>Who are the players — acquirer, issuer, network, gateway, PSP?<span class="qa-badge core">Core</span></summary>
+        <div class="body"><p><strong>Cardholder</strong> pays; <strong>merchant</strong> sells; the <strong>issuer</strong> is the cardholder&#8217;s bank (issues the card, approves/declines, bears credit risk); the <strong>acquirer</strong> is the merchant&#8217;s bank (holds the merchant account, receives funds); the <strong>card network</strong> (Visa, Mastercard, Amex) is the rails connecting issuers and acquirers and sets interchange. A <strong>gateway</strong> transmits transactions; a <strong>processor</strong> does the heavy lifting with the networks; a <strong>PSP</strong> (Stripe, Adyen) bundles gateway + processing + often the merchant account so you integrate once.</p></div>
+      </details>
+      <details class="qa" data-searchable data-level="2">
+        <summary>Authorization vs capture vs settlement vs refund vs void?<span class="qa-badge deep">Deep</span></summary>
+        <div class="body"><p><strong>Authorization</strong> reserves funds. <strong>Capture</strong> tells the bank to actually take the authorized amount (you can auth at order time and capture at ship time). <strong>Settlement</strong> is the batched money movement. <strong>Void</strong> cancels an authorization before capture (no money moved). <strong>Refund</strong> returns money after capture/settlement (a new movement the other way). Knowing auth-then-capture matters for things like hotels/marketplaces where you hold then charge.</p></div>
+      </details>
+      <details class="qa" data-searchable data-level="2">
+        <summary>What is interchange, scheme fees, and MDR?<span class="qa-badge deep">Deep</span></summary>
+        <div class="body"><p><strong>Interchange</strong> is the fee the merchant&#8217;s side pays the issuer on each transaction (set by the networks, varies by card type/region). <strong>Scheme fees</strong> go to Visa/Mastercard. The <strong>MDR</strong> (Merchant Discount Rate) is the all-in percentage the merchant pays = interchange + scheme fees + acquirer/PSP markup. As a leader this matters because card mix drives cost: rewards and commercial cards carry higher interchange, so payment cost is a real P&amp;L lever, not just plumbing.</p></div>
+      </details>
+      <details class="qa" data-searchable data-level="2">
+        <summary>What are commercial cards, and why do Level 2/3 data matter?<span class="qa-badge deep">Deep</span></summary>
+        <div class="body"><p><strong>Commercial cards</strong> are business cards &mdash; corporate cards, <strong>purchasing (P-)cards</strong>, and <strong>virtual cards</strong> (single-use numbers for B2B payments). They carry higher interchange, but submitting richer <strong>Level 2</strong> (tax, customer code) and <strong>Level 3</strong> (line-item detail: SKU, quantity, unit price) data qualifies for <em>lower</em> interchange rates on these cards. For a B2B payments platform that&#8217;s a direct cost saving, so I&#8217;d make sure our system can capture and pass Level 2/3 data to the processor.</p></div>
+      </details>
+      <details class="qa" data-searchable data-level="2">
+        <summary>What is 3-D Secure / SCA / PSD2?<span class="qa-badge deep">Deep</span></summary>
+        <div class="body"><p><strong>3-D Secure</strong> (Verified by Visa, Mastercard ID Check) adds an issuer authentication step to card-not-present payments, shifting fraud liability from merchant to issuer when used. <strong>SCA</strong> (Strong Customer Authentication) under Europe&#8217;s <strong>PSD2</strong> mandates two-factor authentication for many online payments (something you know/have/are), with exemptions for low-risk/low-value. The leadership trade-off: 3DS/SCA cuts fraud and liability but adds checkout friction, so you apply it intelligently (risk-based, using exemptions) to protect conversion.</p></div>
+      </details>
+      <details class="qa" data-searchable data-level="3">
+        <summary>How do you guarantee a customer is never double-charged?<span class="qa-badge deep">Deep</span></summary>
+        <div class="body"><p>Every payment request carries an <strong>idempotency key</strong>, so a retry after a dropped connection returns the original result instead of charging again. The source of truth is a <strong>double-entry ledger</strong> (append-only), balances are derived, and external steps run as a <strong>saga</strong> with compensating reversals. A daily <strong>reconciliation</strong> compares our ledger to the processor/bank settlement files to catch any drift. (See the <a href="sd-payments.html">Payments / Wallet deep-dive</a> for the full architecture.)</p></div>
+      </details>
+      <details class="qa" data-searchable data-level="3">
+        <summary>Chargebacks and disputes — what's the lifecycle, and how does engineering reduce them?<span class="qa-badge deep">Deep</span></summary>
+        <div class="body"><p>A <strong>chargeback</strong> is the cardholder disputing a charge via their issuer; the merchant can <strong>represent</strong> (contest) with evidence, and unresolved cases can escalate to network arbitration. Too many chargebacks (above network thresholds) put you in monitoring programs with fines. Engineering reduces them with clear billing descriptors, good fraud screening, AVS/CVV and 3DS, easy self-serve refunds/cancellation, and automated evidence submission. I treat the chargeback rate as a managed metric with an owner, not a back-office afterthought.</p></div>
+      </details>
+      <details class="qa" data-searchable data-level="1">
+        <summary>EMV, contactless/NFC, and card-present vs card-not-present?<span class="qa-badge core">Core</span></summary>
+        <div class="body"><p><strong>EMV</strong> is the chip standard; the chip generates a one-time cryptogram so a stolen card is hard to clone, and it shifted counterfeit-fraud liability to whoever doesn&#8217;t support chip. <strong>Contactless/NFC</strong> (tap, Apple/Google Pay) is EMV over the air, with the wallet using a device token. <strong>Card-present</strong> (in person) is lower fraud/interchange; <strong>card-not-present</strong> (online/phone) is higher risk, which is why CNP leans on 3DS, AVS, and CVV.</p></div>
+      </details>
+      <details class="qa" data-searchable data-level="2">
+        <summary>"Should we just store card numbers ourselves so we control everything?"<span class="qa-badge trap">Trap</span></summary>
+        <div class="body"><p>I&#8217;d push back firmly. Storing PANs drops you into full <strong>SAQ D / Level 1</strong> territory &mdash; encryption, key management (HSMs), segmentation, annual QSA audits, and enormous breach liability &mdash; for almost no business benefit. The modern answer is the opposite: tokenise, use hosted fields so card data never hits our servers, and let the PSP/token vault hold the PAN. We keep the capability we actually need (charge a saved card) via a token, without the risk and cost. Owning raw card data is a liability, not control.</p></div>
+      </details>
+      <details class="qa" data-searchable data-level="3">
+        <summary>Build vs buy: own the payment stack or use Stripe/Adyen?<span class="qa-badge deep">Deep</span></summary>
+        <div class="body"><p>For almost everyone, start with a PSP (Stripe/Adyen/Braintree): you get PCI scope reduction, global methods, fraud tooling, and reliability without building it. Building your own &mdash; direct acquirer/network integrations, your own gateway &mdash; only pays off at very large volume where the basis points saved on fees exceed the cost of a dedicated payments org, and where you need control PSPs can&#8217;t give. Many large players land on a hybrid: a <strong>payment orchestration</strong> layer over multiple PSPs/acquirers. I&#8217;d frame it as total cost of ownership and strategic differentiation, not &lsquo;build because we can.&rsquo;</p></div>
+      </details>
+      <details class="qa" data-searchable data-level="3">
+        <summary>How do you design reconciliation and settlement accuracy?<span class="qa-badge deep">Deep</span></summary>
+        <div class="body"><p>The internal source of truth is a double-entry ledger recording every authorization, capture, refund, fee, and payout. Each day you ingest the processor/acquirer/bank settlement files and <strong>reconcile</strong>: match our records to theirs, and flag any mismatch (missing payout, fee discrepancy, timing difference) for investigation. Money-affecting jobs are idempotent so reprocessing is safe. The principle I&#8217;d state: assume drift happens, detect it automatically, and never let the books and the bank silently disagree.</p></div>
+      </details>
+      <details class="qa" data-searchable data-level="2">
+        <summary>Auth success rate dropped 2% overnight — how do you lead the investigation?<span class="qa-badge trap">Trap</span></summary>
+        <div class="body"><p>I&#8217;d look at the data before theorising: break declines down by issuer, BIN/region, card type, and decline code (soft vs hard declines), and check whether it correlates with a deploy, a PSP/acquirer change, a new 3DS/SCA rule adding friction, or expired-card churn. Common culprits: a routing change, an over-aggressive fraud rule, missing network tokens, or an issuer-side issue. The leadership move is a clear owner, one hypothesis at a time, and instrumenting authorisation rate as a first-class business metric so a 2% drop is caught in minutes, not noticed in the revenue report.</p></div>
+      </details>
+      <details class="qa" data-searchable data-level="3">
+        <summary>Why and how would you run multiple PSPs (payment orchestration)?<span class="qa-badge deep">Deep</span></summary>
+        <div class="body"><p>A single PSP is a single point of failure and a single set of rates/approval behaviours. A <strong>payment orchestration</strong> layer routes transactions across multiple PSPs/acquirers to improve <strong>authorisation rates</strong> (some issuers approve more via a given acquirer), provide <strong>failover</strong> if one PSP has an outage, optimise <strong>cost</strong>, and reach <strong>local acquiring</strong> in different countries. The cost is real integration and reconciliation complexity across providers, so it earns its place at scale, not on day one.</p></div>
+      </details>
+      <details class="qa" data-searchable data-level="2">
+        <summary>What are HSMs and why do they matter in payments?<span class="qa-badge deep">Deep</span></summary>
+        <div class="body"><p>An <strong>HSM</strong> (Hardware Security Module) is tamper-resistant hardware that generates, stores, and uses cryptographic keys without ever exposing them. In payments it protects PIN encryption, key management for P2PE, and tokenisation vaults &mdash; PCI requires strong key management and HSMs are how it&#8217;s done. As a leader I don&#8217;t operate them hands-on, but I must know that card-data crypto belongs in HSMs (or a PSP that uses them), not in application code or config.</p></div>
+      </details>
+      <details class="qa" data-searchable data-level="3">
+        <summary>How do you run PCI compliance as an ongoing program, not a yearly scramble?<span class="qa-badge deep">Deep</span></summary>
+        <div class="body"><p>Treat it like security generally: bake it into the platform so teams are compliant by default. Keep scope minimal (tokenisation, hosted fields), automate evidence (access reviews, logging, change management, vulnerability scans, segmentation tests) so the annual assessment is mostly a report, not a fire drill. Assign a clear owner, track controls continuously, and put PCI-relevant checks into CI. The framing I&#8217;d give leadership: compliance is a continuous capability we maintain, and the audit is just a snapshot of something already true.</p></div>
+      </details>
+      <details class="qa" data-searchable data-level="3">
+        <summary>Global payments — what changes beyond cards?<span class="qa-badge deep">Deep</span></summary>
+        <div class="body"><p>Cards aren&#8217;t universal: you need <strong>local payment methods</strong> (SEPA/iDEAL in Europe, UPI in India, Pix in Brazil, Alipay/WeChat in China), multi-<strong>currency</strong> pricing and FX, <strong>local acquiring</strong> for better rates and approval, and per-region regulation (PSD2/SCA in the EU, RBI rules and data-localisation in India, etc.). The leadership job is choosing PSPs/orchestration that cover your priority markets and designing the checkout to surface the right method per geography, because the &lsquo;best&rsquo; method varies wildly by country.</p></div>
+      </details>
+      <details class="qa" data-searchable data-level="2">
+        <summary>Tell me about leading a PSP migration with no downtime and no lost payments.<span class="qa-badge trap">Trap</span></summary>
+        <div class="body"><p>Structure it as a careful, reversible rollout. Run the new PSP in parallel, migrate stored cards via <strong>network-token / vault migration</strong> (PSPs support secure card-data portability so customers don&#8217;t re-enter cards), and route a small percentage of traffic first behind a flag, watching authorisation rate, latency, and errors. Keep idempotency and reconciliation tight so nothing double-charges or goes missing during cutover, and keep the old PSP as instant fallback until confidence is high. The story to tell is risk management: thin slices, real metrics, instant rollback &mdash; never a big-bang switch on a payments system.</p></div>
+      </details>
+    </div>
+
+    <div class="recap"><span class="label">&#129504; Remember it</span>
+      <p>Payments leadership rests on two pillars: <span class="hook">keep card data out of scope</span> (PCI + tokenisation) and <span class="hook">move money exactly-once and auditably</span> (idempotency + ledger + reconciliation).</p>
+      <ul>
+        <li>Auth (instant yes/no) is separate from clearing &amp; settlement (batched money movement).</li>
+        <li>Tokenise &amp; use hosted fields so a PAN never touches your servers &rarr; light PCI SAQ.</li>
+        <li>3DS/SCA and fraud tooling trade checkout friction for lower fraud &amp; liability &mdash; tune by risk.</li>
+        <li>Commercial cards + Level 2/3 data, network tokens, and PSP routing are real cost/approval levers.</li>
+      </ul>
+    </div>
+
+    <div class="pagenav">
+      <a class="card" href="sd-payments.html"><span class="tag">Architecture &rarr;</span><h3>Payments / Wallet deep-dive</h3></a>
+      <a class="card" href="security.html"><span class="tag">Related &rarr;</span><h3>Security</h3></a>
+    </div>
+  </main>
+</div>
+</div>
+
+<script src="assets/js/main.js"></script>
+</body>
+</html>

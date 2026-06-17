@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="warm">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Design a Chat System (WhatsApp / Messenger) — Director's Edge</title>
+<meta name="description" content="In-depth system design deep-dive: Design a Chat System (WhatsApp / Messenger) — requirements, capacity estimation, API, data model, architecture diagram, scaling, failure handling, and trade-offs." />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="assets/css/styles.css" />
+</head>
+<body data-theme="warm">
+
+<section class="hero">
+  <span class="eyebrow">System design deep-dive</span>
+  <h1>Design a Chat System (WhatsApp / Messenger)</h1>
+  <p class="lead">A technical deep-dive into real-time messaging at planet scale: persistent connections, routing a message to the recipient's live server, ordering, offline delivery, and end-to-end encryption.</p>
+</section>
+
+<div class="wrap section">
+<div class="page-layout">
+  <aside class="toc">
+    <strong>On this page</strong>
+    <a href="#think">How to think (step by step)</a>
+    <a href="#reqs">1 · Requirements</a>
+    <a href="#capacity">2 · Capacity</a>
+    <a href="#protocol">3 · Protocol</a>
+    <a href="#data">4 · Data model</a>
+    <a href="#arch">5 · Architecture</a>
+    <a href="#hard">6 · The hard parts</a>
+    <a href="#scale">7 · Scaling</a>
+    <a href="#fail">8 · Failure</a>
+    <a href="#tradeoffs">9 · Trade-offs</a>
+    <a href="#subsystems">Key sub-systems</a>
+    <a href="#bottlenecks">Bottlenecks</a>
+    <a href="#levels">Senior / Staff / Principal</a>
+    <a href="#faq">Follow-up Q&amp;A</a>
+  </aside>
+  <main>
+    <div class="story"><span class="label">&#128214; The story</span>
+      <p>Throughput isn&#8217;t the villain here &mdash; <em>state</em> is. Billions of messages is manageable; the hard part is holding hundreds of millions of <em>live connections</em> and finding which server currently holds the person you&#8217;re messaging.</p>
+      <p>So the plot centers on a registry that maps each user to their connection server, a queue that routes messages with backpressure, and per-conversation sequence numbers that let any client reconnect and resync without losing or reordering a thing. Persist before you ack, dedupe on a client message id, and delivery stays correct through every crash.</p>
+    </div>
+
+    <div class="callout"><span class="label">&#11088; At Google</span><p>Drive this top-down: requirements &rarr; scale &rarr; design &rarr; deep-dive on the bottleneck &rarr; trade-offs. Narrate assumptions out loud; that structured reasoning is what the hiring committee scores. Back to <a href="system-design-cases.html">System Design II</a>.</p></div>
+
+            <div class="tools"><span class="tlabel">&#128295; Typical tools</span><span class="tool">WebSocket</span><span class="tool">Redis</span><span class="tool">Cassandra</span><span class="tool">Apache Kafka</span><span class="tool">MQTT</span></div>
+
+    <h2 id="think">How to think about it &mdash; step by step</h2>
+    <div class="steps">
+      <div class="step"><h4>Identify the true challenge</h4><p>It isn't message volume &mdash; it's holding hundreds of millions of live connections. <span class="why">Why:</span> that reframes the whole design around connection state.</p></div>
+      <div class="step"><h4>Keep connections open</h4><p>Clients hold a WebSocket to a connection server so the server can push. <span class="why">Why:</span> chat needs the server to reach the user instantly.</p></div>
+      <div class="step"><h4>Solve routing</h4><p>Keep a map of user &rarr; which server holds their socket; route messages through it. <span class="why">Why:</span> you must find the recipient's current server.</p></div>
+      <div class="step"><h4>Guarantee order and delivery</h4><p>Per-conversation sequence numbers; persist before you ack; offline queue for the disconnected. <span class="why">Why:</span> messages must never drop or reorder.</p></div>
+      <div class="step"><h4>Make reconnect painless</h4><p>Client comes back, re-registers, and pulls everything since its last sequence. <span class="why">Why:</span> phones lose signal constantly.</p></div>
+    </div>
+
+    <h2 id="reqs">1 &middot; Requirements</h2>
+    <p><strong>Functional:</strong> 1:1 and group messaging; delivered/read receipts; online presence; offline delivery (messages wait for a disconnected user); strict ordering within a conversation; optional end-to-end encryption. <strong>Non-functional:</strong> very low delivery latency, hundreds of millions of concurrent connections, high availability, durability (never lose a delivered message).</p>
+
+    <h2 id="capacity">2 &middot; Capacity estimation</h2>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Quantity</th><th>Estimate</th><th>How</th></tr></thead>
+      <tbody>
+        <tr><td>Users</td><td>~2B</td><td>given</td></tr>
+        <tr><td>Messages/day</td><td>~100B</td><td>given</td></tr>
+        <tr><td>Message throughput</td><td>~1.2M/s avg, several M/s peak</td><td>100B &divide; 86,400</td></tr>
+        <tr><td>Concurrent connections</td><td>hundreds of millions</td><td>large fraction online at once</td></tr>
+        <tr><td>Storage</td><td>~10 TB/day</td><td>100B &times; ~100 bytes/msg</td></tr>
+      </tbody>
+    </table></div>
+    <p>The defining challenge isn&#8217;t throughput &mdash; it&#8217;s holding <strong>hundreds of millions of persistent connections</strong> and routing each message to the one server currently holding the recipient&#8217;s socket.</p>
+
+    <h2 id="protocol">3 &middot; Connection &amp; protocol</h2>
+    <p>HTTP request/response doesn&#8217;t fit &mdash; the server must <em>push</em>. Clients hold a persistent <strong>WebSocket</strong> (or MQTT) to a connection server. Every message is acknowledged (client&rarr;server&rarr;recipient&rarr;receipts) and carries a client-generated message ID for idempotency.</p>
+    <ul class="clean">
+      <li><code>SEND {convId, clientMsgId, body}</code> &rarr; server persists, returns <code>{msgId, seq}</code>.</li>
+      <li>Server pushes <code>DELIVER {convId, msgId, seq, body}</code> to recipients; clients reply <code>ACK</code> / <code>READ</code>.</li>
+    </ul>
+
+    <h2 id="data">4 &middot; Data model</h2>
+    <ul class="clean">
+      <li><strong>Messages</strong> (Cassandra): partition by <code>convId</code>, clustering key <code>seq</code> (monotonic per conversation) &rarr; ordered reads and easy &ldquo;since seq N&rdquo; sync.</li>
+      <li><strong>Conversation membership</strong>: members of each conversation/group.</li>
+      <li><strong>Session registry</strong> (Redis): <code>userId =&gt; connectionServerId</code> &mdash; where each online user is connected right now.</li>
+      <li><strong>Per-user inbox / offline queue</strong>: undelivered messages for users who are offline (store-and-forward).</li>
+    </ul>
+
+    <h2 id="arch">5 &middot; Architecture</h2>
+    <figure class="diagram">
+      <svg viewBox="0 0 820 230" role="img" aria-label="Chat architecture: clients hold WebSockets to connection servers, a router delivers via a session registry and persists to the message store">
+        <defs><marker id="arCH" markerWidth="9" markerHeight="9" refX="7" refY="4.5" orient="auto"><path d="M0,0 L9,4.5 L0,9 z" fill="var(--accent)"/></marker>
+        <marker id="arCHd" markerWidth="9" markerHeight="9" refX="7" refY="4.5" orient="auto"><path d="M0,0 L9,4.5 L0,9 z" fill="var(--text-dim)"/></marker></defs>
+        <rect class="svg-box" x="10" y="34" width="80" height="50" rx="9"/><text class="svg-txt" x="50" y="64" text-anchor="middle">Client A</text>
+        <rect class="svg-accent" x="116" y="34" width="126" height="50" rx="9"/><text class="svg-txt" x="179" y="56" text-anchor="middle">Conn server A</text><text class="svg-sub" x="179" y="73" text-anchor="middle">holds WebSocket</text>
+        <rect class="svg-accent2" x="268" y="34" width="150" height="50" rx="9"/><text class="svg-txt" x="343" y="56" text-anchor="middle">Router</text><text class="svg-sub" x="343" y="73" text-anchor="middle">+ message queue</text>
+        <rect class="svg-accent" x="444" y="34" width="126" height="50" rx="9"/><text class="svg-txt" x="507" y="56" text-anchor="middle">Conn server B</text><text class="svg-sub" x="507" y="73" text-anchor="middle">holds WebSocket</text>
+        <rect class="svg-box" x="596" y="34" width="80" height="50" rx="9"/><text class="svg-txt" x="636" y="64" text-anchor="middle">Client B</text>
+        <rect class="svg-good" x="160" y="140" width="170" height="50" rx="9"/><text class="svg-txt" x="245" y="162" text-anchor="middle">Session registry</text><text class="svg-sub" x="245" y="178" text-anchor="middle">Redis: user&rarr;server</text>
+        <rect class="svg-box" x="356" y="140" width="160" height="50" rx="9"/><text class="svg-txt" x="436" y="162" text-anchor="middle">Message store</text><text class="svg-sub" x="436" y="178" text-anchor="middle">Cassandra + offline queue</text>
+        <g class="svg-line-acc">
+          <line x1="90" y1="59" x2="114" y2="59" marker-end="url(#arCH)"/>
+          <line x1="242" y1="59" x2="266" y2="59" marker-end="url(#arCH)"/>
+          <line x1="418" y1="59" x2="442" y2="59" marker-end="url(#arCH)"/>
+          <line x1="570" y1="59" x2="594" y2="59" marker-end="url(#arCH)"/>
+          <line x1="320" y1="84" x2="270" y2="138" marker-end="url(#arCH)"/>
+          <line x1="366" y1="84" x2="420" y2="138" marker-end="url(#arCH)"/>
+        </g>
+        <text class="svg-sub" x="250" y="116" text-anchor="middle">look up B</text>
+        <text class="svg-sub" x="430" y="116" text-anchor="middle">persist</text>
+      </svg>
+      <figcaption>Client A sends over its WebSocket to Conn server A; the Router persists the message, looks up in the session registry which connection server holds B, and forwards it there to be pushed down B&#8217;s socket. If B is offline, the message lands in B&#8217;s offline queue for store-and-forward on reconnect.</figcaption>
+    </figure>
+
+    <h2 id="hard">6 &middot; The hard parts</h2>
+    <ul class="clean">
+      <li><strong>Routing to the right server</strong>: connections are stateful, so we keep a <code>userId&rarr;connServer</code> map in Redis updated on connect/disconnect; the router consults it (or publishes to a per-user channel via pub/sub) to reach the recipient&#8217;s server.</li>
+      <li><strong>Ordering</strong>: a monotonic per-conversation <code>seq</code> gives total order within a chat; clients render by seq and request &ldquo;everything since my last seq&rdquo; to resync.</li>
+      <li><strong>Offline + delivery guarantees</strong>: store-and-forward queue per user; at-least-once delivery deduped by <code>clientMsgId</code>; receipts are just more messages.</li>
+      <li><strong>Groups</strong>: small groups fan out to each member&#8217;s server; very large groups borrow the feed&#8217;s hybrid idea.</li>
+    </ul>
+    <div class="callout"><span class="label">End-to-end encryption</span><p>With E2E (e.g. the Signal protocol) the server routes ciphertext it can&#8217;t read. That maximizes privacy but means server-side search, spam scanning, and rich previews must move to the client &mdash; a real product trade-off to name.</p></div>
+
+        <div class="example" data-ex-added><span class="label">&#128205; Real example &mdash; WebSocket vs long-polling</span>
+      <p>How does a new message reach the receiver instantly? Two approaches &mdash; the old workaround and the modern answer:</p>
+      <pre class="code"><span class="c">// LONG-POLLING (HTTP hack): client keeps asking, server holds the request open</span>
+client &rarr; GET /messages?since=1042      (server holds it... up to 30s)
+server &rarr; 200 [ ]  (nothing yet, timeout)   client immediately asks again...
+server &rarr; 200 [ {msg 1043} ]  (something arrived &mdash; reply at once)
+   cost: a new request/response per message, lots of overhead, near-real-time only.
+
+<span class="c">// WEBSOCKET: one handshake upgrades HTTP to a persistent two-way pipe</span>
+client &rarr; GET /chat   Upgrade: websocket            (handshake, once)
+server &rarr; 101 Switching Protocols                    (now a duplex channel)
+   ... server PUSHES {msg 1043} the instant it arrives, no new request
+   ... client sends typing/read receipts down the SAME socket</pre>
+      <p><strong>What this teaches:</strong> long-polling fakes real-time over plain HTTP &mdash; simple and firewall-friendly, but every message costs a full request and latency is bounded by the poll. A <strong>WebSocket</strong> does one <code>Upgrade</code> handshake (HTTP 101) and then keeps a single connection open both ways, so the server can <em>push</em> instantly and the client streams typing indicators back down the same pipe. The trade: you now hold millions of long-lived connections, so you need a connection/presence layer and a way to route a message to whichever server holds the recipient&#8217;s socket.</p>
+    </div>
+
+    <h2 id="scale">7 &middot; Scaling</h2>
+    <ul class="clean">
+      <li><strong>Connection servers</strong> scale horizontally; each holds tens-to-hundreds of thousands of sockets; a load balancer with sticky sessions assigns clients; on server loss, clients reconnect and re-register.</li>
+      <li><strong>Shard</strong> the session registry and message store by user/conversation.</li>
+      <li>The router rides a <strong>message queue</strong> so spikes are absorbed and delivery is decoupled from ingestion.</li>
+    </ul>
+
+    <h2 id="fail">8 &middot; Failure &amp; reliability</h2>
+    <ul class="clean">
+      <li><strong>Reconnect &amp; resync</strong>: client reconnects to any server, re-registers, and pulls messages since its last seq &mdash; no message lost.</li>
+      <li><strong>Durability</strong>: persist before ack; replicate the store across AZs.</li>
+      <li><strong>Idempotency</strong>: dedupe on <code>clientMsgId</code> so retries never duplicate a message.</li>
+    </ul>
+
+    <h2 id="tradeoffs">9 &middot; Trade-offs</h2>
+    <ul class="clean">
+      <li><strong>At-least-once + dedup</strong> (simple, safe) over exactly-once (complex).</li>
+      <li><strong>Stateful connections</strong> give push/low latency but make routing and failover harder &mdash; the session registry is the price.</li>
+      <li><strong>E2E encryption</strong> trades server features for privacy.</li>
+    </ul>
+    <div class="say"><span class="label">Say it like a director</span><p>&ldquo;The throughput is manageable; the real problem is stateful fan-in/fan-out across hundreds of millions of live sockets. I&#8217;d keep a userId-to-server registry in Redis, route through a queue for backpressure, persist-before-ack for durability, and use per-conversation sequence numbers so any client can reconnect and resync without losing or reordering a message.&rdquo;</p></div>
+
+    
+        <h2 id="subsystems">Key sub-systems</h2>
+    <ul class="clean">
+      <li><strong>Connection servers</strong> &mdash; hold WebSockets.</li>
+      <li><strong>Session registry</strong> &mdash; userId &rarr; server (Redis).</li>
+      <li><strong>Router + queue</strong> &mdash; delivers/buffers messages.</li>
+      <li><strong>Message store</strong> &mdash; per-conversation, ordered.</li>
+      <li><strong>Offline queue</strong> &mdash; store-and-forward.</li>
+    </ul>
+    <h2 id="bottlenecks">Bottlenecks &amp; what to optimize next</h2>
+    <ul class="clean">
+      <li>Holding millions of sockets is the constraint &mdash; scale connection servers horizontally.</li>
+      <li>Group fan-out for large groups &mdash; borrow the feed's hybrid approach.</li>
+    </ul>
+    <h2 id="levels">Senior &middot; Staff &middot; Principal</h2>
+    <div class="ladder">
+      <div class="lv s"><span class="tier">Senior</span><p>Builds persistent connections, routing, and ordered delivery.</p></div>
+      <div class="lv t"><span class="tier">Staff</span><p>Handles the session registry, reconnect/resync, and offline store-and-forward.</p></div>
+      <div class="lv p"><span class="tier">Principal</span><p>Raises end-to-end encryption trade-offs, global presence at scale, and multi-device sync/consistency.</p></div>
+    </div>
+    <h2 id="faq">Common follow-up questions</h2>
+    <details class="qa"><summary>How do you route a message to the right server?</summary><div class="body"><p>A userId&rarr;connection-server map in Redis (updated on connect/disconnect); the router looks it up or publishes to a per-user channel.</p></div></details>
+    <details class="qa"><summary>How do messages stay ordered?</summary><div class="body"><p>A monotonic per-conversation sequence number; clients render by sequence and resync 'everything since N' on reconnect.</p></div></details>
+    <details class="qa"><summary>How does E2E encryption change the design?</summary><div class="body"><p>The server routes ciphertext it can't read, so search, previews, and spam scanning must move to the client.</p></div></details>
+
+    <div class="recap"><span class="label">&#129504; Remember it</span>
+      <p>The challenge isn&#8217;t throughput, it&#8217;s <span class="hook">routing across millions of live, stateful connections</span>.</p>
+      <ul>
+        <li>A userId&rarr;server registry (Redis) finds the recipient&#8217;s socket.</li>
+        <li>Per-conversation sequence numbers give order + easy resync.</li>
+        <li>Persist-before-ack + dedupe = at-least-once, never lost.</li>
+      </ul>
+    </div>
+
+    <div class="pagenav">
+      <a class="card" href="sd-news-feed.html"><span class="tag">&larr; Previous</span><h3>News Feed</h3></a>
+      <a class="card" href="sd-video.html"><span class="tag">Next deep-dive &rarr;</span><h3>Video Streaming</h3></a>
+    </div>
+  </main>
+</div>
+</div>
+
+<script src="assets/js/main.js"></script>
+</body>
+</html>

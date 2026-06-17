@@ -1,0 +1,279 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="warm">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Google Prep — Director's Edge</title>
+<meta name="description" content="The deep, Google-first preparation guide for engineering leaders: how Google hires, the four attributes (GCA, RRK, Leadership, Googleyness), system design at scale, behavioral, a prep plan, and a Google-flavored question bank." />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="assets/css/styles.css" />
+</head>
+<body data-theme="warm">
+
+<section class="hero">
+  <span class="eyebrow">&#11088; Priority focus</span>
+  <h1>Cracking Google as an Engineering Leader</h1>
+  <p class="lead">This is the heart of your prep. Google interviews are unusually structured and decided by a hiring committee that never meets you &mdash; so success comes from showing clear, repeatable thinking against four explicit attributes. Master this page first; the pillars exist to deepen what you practice here.</p>
+</section>
+
+<div class="wrap section">
+<div class="page-layout">
+
+  <aside class="toc">
+    <strong>On this page</strong>
+    <a href="#system">How Google hires</a>
+    <a href="#attributes">The four attributes</a>
+    <a href="#gca">General Cognitive Ability</a>
+    <a href="#leadership">Leadership</a>
+    <a href="#googleyness">Googleyness</a>
+    <a href="#rrk">Role-Related Knowledge</a>
+    <a href="#design">System design at scale</a>
+    <a href="#behavioral">Behavioral, the Google way</a>
+    <a href="#plan">Your Google prep plan</a>
+    <a href="#questions">Google question bank</a>
+  </aside>
+
+  <main>
+    <div class="story"><span class="label">&#128214; The story</span>
+      <p>Picture your packet travelling to a room you&#8217;ll never enter. Your interviewers don&#8217;t decide &mdash; they take notes; a <em>hiring committee</em> of strangers reads those notes and rules on you. So the whole game becomes: leave behind clean, quotable evidence.</p>
+      <p>They score four things &mdash; how you <em>think</em> (GCA), what you <em>know</em> (Role-Related Knowledge), how you <em>lead</em> (Leadership), and how you <em>work</em> (Googleyness). Each answer you give is really you depositing proof into one of those four buckets.</p>
+      <p>So you structure everything: clarify, assume out loud, lay out options, decide, say what would change your mind. That visible reasoning &mdash; plus stories that <em>show</em> user-focus and humility rather than claim them &mdash; is what survives the trip to the committee.</p>
+    </div>
+
+
+    <div class="callout">
+      <span class="label">Why Google is different</span>
+      <p>At most companies, the people who interview you decide. At Google, your interviewers only write detailed notes and scores; an independent <strong>hiring committee</strong> of senior Googlers who never met you reads the packet and decides. That single fact shapes everything: you are writing evidence for a reader who isn't in the room, so <em>structure, clarity, and explicit reasoning</em> matter as much as the answer.</p>
+    </div>
+
+    <h2 id="system">How Google hires</h2>
+    <p>Understand the machine you're being assessed by &mdash; it tells you exactly what to optimize for.</p>
+    <ul class="clean">
+      <li><strong>The loop:</strong> after recruiter screens, you do several interviews covering the four attributes &mdash; typically a mix of system/technical design, leadership and people management, and behavioral rounds (for leadership roles, less or no live coding, more design, strategy, and people).</li>
+      <li><strong>Interviewers score, they don't decide:</strong> each writes a detailed, evidence-based report with a recommendation and maps your signals to the four attributes.</li>
+      <li><strong>The hiring committee:</strong> senior Googlers who never met you read the whole packet &mdash; reports, scores, resume, recruiter notes &mdash; and make the call. They're looking for consistent, well-evidenced signal across attributes.</li>
+      <li><strong>Leveling:</strong> engineering leadership maps roughly to L6 (Senior Manager / Staff), L7 (Director-level), L8+ (Senior Director). Higher levels are judged on scope, ambiguity, and organizational impact, not deeper coding.</li>
+      <li><strong>Team matching:</strong> approval often precedes matching to a specific team, so breadth and adaptability help.</li>
+    </ul>
+    <div class="say">
+      <span class="label">What this means for you</span>
+      <p>Speak so the absent committee member could reconstruct your reasoning from notes: state assumptions, lay out options and trade-offs, decide, and connect to impact. Give your interviewer clean, quotable evidence to write down.</p>
+    </div>
+
+    <h2 id="attributes">The four attributes Google scores</h2>
+    <p>Every question maps to one or more of these. Know them cold and you'll recognize what each interviewer is really probing.</p>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Attribute</th><th>What it means</th><th>How you show it</th></tr></thead>
+        <tbody>
+          <tr><td><strong>General Cognitive Ability (GCA)</strong></td><td>How you solve hard, ambiguous problems and how you learn &mdash; your <em>process</em>, not raw IQ.</td><td>Clarify, structure, reason aloud, use data, adapt when given new info.</td></tr>
+          <tr><td><strong>Role-Related Knowledge (RRK)</strong></td><td>The domain expertise and skills for the specific role and level.</td><td>System design, technical depth, people &amp; delivery leadership at scale.</td></tr>
+          <tr><td><strong>Leadership</strong></td><td>Emergent leadership &mdash; stepping up (and back) across teams, and growing people.</td><td>Influence without authority, ownership, developing others, navigating ambiguity.</td></tr>
+          <tr><td><strong>Googleyness</strong></td><td>How you work: comfort with ambiguity, user focus, collaboration, humility.</td><td>Bias to action, valuing feedback, caring for teammates, intellectual humility.</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h2 id="gca">General Cognitive Ability &mdash; the make-or-break skill</h2>
+    <p>GCA is the most Google-specific muscle. They're testing whether you can take a vague, large problem and impose structure on it. The content of your answer matters less than the visible quality of your thinking.</p>
+    <div class="callout tip">
+      <span class="label">A reusable GCA structure</span>
+      <p>(1) <strong>Clarify</strong> the goal and constraints &mdash; ask sharp questions. (2) <strong>Frame</strong> &mdash; restate the problem and state your assumptions explicitly. (3) <strong>Break it down</strong> into components or options. (4) <strong>Reason</strong> through trade-offs with data or estimates. (5) <strong>Decide</strong> and justify. (6) <strong>Stress-test</strong> &mdash; what would change your answer, how would you measure success. Narrate each step out loud.</p>
+    </div>
+    <p>GCA shows up in technical design, in product/estimation questions ("how many X are there?"), and in leadership hypotheticals ("how would you approach Y?"). The same structure works for all of them. Two tells the committee loves: you <em>changed your answer when given new data</em> (intellectual humility + learning), and you <em>made your assumptions explicit</em> (so the reasoning is auditable).</p>
+    <div class="say">
+      <span class="label">Say it like a director</span>
+      <p>"Let me make sure I understand the goal, then state my assumptions before I dive in&hellip; The key tension here is X versus Y. I'd break this into three parts&hellip; given the data, I'd lean toward this option, and here's what would make me change my mind."</p>
+    </div>
+
+    <h2 id="leadership">Leadership &mdash; emergent and people</h2>
+    <p>For director roles Google cares about both <strong>emergent leadership</strong> (stepping up to lead in cross-functional moments, then stepping back) and the people-leadership fundamentals: hiring and growing strong leaders, setting direction, and driving outcomes across teams. Lead your stories with how you grew others and influenced beyond your direct authority &mdash; that's the signal that scales to L7/L8.</p>
+    <ul class="clean">
+      <li>Show you create leaders, not just followers &mdash; coaching, delegation with real ownership, building managers.</li>
+      <li>Demonstrate influence without authority across orgs &mdash; most director impact is persuasion, not position.</li>
+      <li>Connect engineering decisions to user and business outcomes &mdash; Google rewards user-first leaders.</li>
+      <li>Own failures and show what you changed &mdash; accountability reads as strength here.</li>
+    </ul>
+    <p>The deeper people-and-delivery material lives in <a href="leadership.html">Leadership &amp; Delivery</a> &mdash; bring those frames here and frame them as emergent leadership.</p>
+
+    <h2 id="googleyness">Googleyness &mdash; how you work</h2>
+    <p>Recently clarified, Googleyness centers on five behaviors. Weave concrete evidence of each into your stories rather than claiming them.</p>
+    <div class="grid cols-2">
+      <div class="card"><h3>Thrive in ambiguity</h3><p>Comfort making progress without complete information; a bias to action and reversible experiments over analysis paralysis.</p></div>
+      <div class="card"><h3>Value feedback</h3><p>You seek it, act on it, and give it well. Talk openly about feedback that changed you &mdash; ego-free.</p></div>
+      <div class="card"><h3>Put the user first</h3><p>Decisions trace back to user benefit, not internal politics or shiny tech. Google is relentlessly user-centric.</p></div>
+      <div class="card"><h3>Care for the team</h3><p>Collaboration and looking out for teammates over individual heroics; psychological safety and inclusion.</p></div>
+      <div class="card"><h3>Intellectual humility</h3><p>You change your mind with evidence, credit others, and say "I don't know, here's how I'd find out."</p></div>
+      <div class="card"><h3>Do the right thing</h3><p>Integrity under pressure &mdash; making the principled call even when it's costly or unpopular.</p></div>
+    </div>
+    <div class="callout warn">
+      <span class="label">Don't claim it &mdash; show it</span>
+      <p>Saying "I'm collaborative and humble" is worthless. Tell a story where you sought out hard feedback and changed course, or put the user ahead of a deadline. Let the behavior be visible in what you actually did.</p>
+    </div>
+
+    <h2 id="rrk">Role-Related Knowledge</h2>
+    <p>For an engineering director this is breadth and depth: system design at scale, technical judgment current enough to earn trust (see <a href="tech-radar.html">Tech Radar</a>), and the craft of leading delivery, people, and strategy. You won't be grilled on syntax, but you must reason credibly about architecture, reliability, security, and how you'd run a large org. The seven pillars of this site are your RRK preparation &mdash; this page is how you frame them for Google.</p>
+
+    <h2 id="design">System design at Google scale</h2>
+    <p>Design questions at Google assume scale and ambiguity. They want to see you reason about billions of users, global distribution, and failure &mdash; while making explicit trade-offs.</p>
+    <ul class="clean">
+      <li><strong>Start with scale and constraints:</strong> "How many users, reads vs writes, latency target, consistency needs?" &mdash; the GCA structure applies.</li>
+      <li><strong>Think planet-scale:</strong> multi-region, replication, partitioning/sharding, caching and CDNs, and the CAP trade-off (Google famously chose strong consistency at scale with Spanner using synchronized clocks &mdash; know the trade-off, not the internals).</li>
+      <li><strong>Reliability is first-class:</strong> SLOs, error budgets, and SRE thinking are part of Google's DNA &mdash; design for failure and name your reliability targets.</li>
+      <li><strong>Cost and operations at scale:</strong> at billions of requests, efficiency and who operates the system matter; mention them.</li>
+      <li><strong>Stay at the right altitude:</strong> as a leader, reason about components, trade-offs, and the team &mdash; not code.</li>
+    </ul>
+    <p>Work the full method and diagrams on the <a href="system-design.html">System Design</a> pillar, then bring the "design for billions, name the trade-off" mindset here.</p>
+    <div class="say">
+      <span class="label">Say it like a director</span>
+      <p>"At this scale I'd assume multi-region from day one and decide the consistency model per data type &mdash; strong for anything user-trust-critical, eventual where we can tolerate it for availability. I'd set explicit SLOs and an error budget so reliability has a seat at the prioritization table, and I'd design for the failure of any single region."</p>
+    </div>
+
+    <h2 id="behavioral">Behavioral, the Google way</h2>
+    <p>Google behavioral questions come in two flavors: <strong>past behavior</strong> ("tell me about a time&hellip;") and <strong>hypotheticals</strong> ("how would you&hellip;"). Use STAR for the past ones and the GCA structure for the hypotheticals &mdash; and in both, leave clear evidence mapped to the four attributes.</p>
+    <ul class="clean">
+      <li>Prepare a story bank (see <a href="behavioral.html">Behavioral</a>) and tag each story with the attributes it demonstrates &mdash; GCA, Leadership, Googleyness.</li>
+      <li>Use "I", quantify results, and end with what you learned (intellectual humility).</li>
+      <li>For hypotheticals, never blurt an answer &mdash; clarify, structure, reason, decide, and say what would change your mind.</li>
+      <li>Bring at least one user-first story and one feedback-that-changed-me story; those hit Googleyness directly.</li>
+    </ul>
+
+    <h2 id="plan">Your Google prep plan</h2>
+    <div class="level-block l1">
+      <div class="level-head"><div class="level-chip">1</div><div><h3>Internalize the system</h3><div class="sub">~2&ndash;3 days</div></div></div>
+      <ul class="checklist">
+        <li>Memorize the four attributes and what each looks like in an answer.</li>
+        <li>Understand the hiring-committee model &mdash; practice "writing evidence for the absent reader".</li>
+        <li>Drill the GCA structure until it's automatic on any prompt.</li>
+      </ul>
+    </div>
+    <div class="level-block l2">
+      <div class="level-head"><div class="level-chip">2</div><div><h3>Build the substance</h3><div class="sub">~2 weeks</div></div></div>
+      <ul class="checklist">
+        <li>Work the seven pillars for RRK depth &mdash; especially System Design and Leadership.</li>
+        <li>Write a story bank of 8&ndash;10 examples, each tagged to attributes and Googleyness behaviors.</li>
+        <li>Practice scale system-design out loud: "design X for a billion users," naming trade-offs and SLOs.</li>
+      </ul>
+    </div>
+    <div class="level-block l3">
+      <div class="level-head"><div class="level-chip">3</div><div><h3>Rehearse like the loop</h3><div class="sub">~1 week</div></div></div>
+      <ul class="checklist">
+        <li>Mock the full loop: a design round, a leadership/people round, and behavioral rounds.</li>
+        <li>Record yourself; check that assumptions, structure, and attribute-evidence are explicit.</li>
+        <li>Drill the Google question bank below by level until fluent.</li>
+      </ul>
+    </div>
+
+    <h2 id="questions">Google question bank</h2>
+    <div class="search"><input type="text" data-search placeholder="Search Google questions&hellip;" /></div>
+    <div class="btn-row" style="margin-top:0">
+      <button class="btn" data-open-all>Expand all</button>
+      <button class="btn" data-close-all>Collapse all</button>
+    </div>
+    <p class="no-results">No questions match your search.</p>
+
+    <div data-search-group>
+      <details class="qa" data-searchable data-level="1">
+        <summary>What are the four attributes Google evaluates, and why do they matter to how you answer?<span class="qa-badge core">Core</span></summary>
+        <div class="body">
+          <p>General Cognitive Ability (how I solve ambiguous problems and learn), Role-Related Knowledge (my domain and leadership expertise), Leadership (emergent leadership and growing people), and Googleyness (how I work &mdash; ambiguity, user focus, feedback, care for the team, humility). They matter because every question maps to one or more, and an independent hiring committee scores me on them from written notes. So I answer to leave clear, quotable evidence for each &mdash; structured reasoning for GCA, influence and people stories for Leadership, and concrete behaviors for Googleyness rather than claims.</p>
+        </div>
+      </details>
+      <details class="qa" data-searchable data-level="1">
+        <summary>Why does the hiring committee model change how you should interview?<span class="qa-badge core">Core</span></summary>
+        <div class="body">
+          <p>Because the people in the room don't decide &mdash; they write evidence for a committee that never meets me. So I optimize for clarity and structure a reader can reconstruct: I state assumptions, lay out options and trade-offs explicitly, decide, and tie it to impact. I'd rather be clearly reasoned than cleverly terse. Practically, I narrate my thinking and pause to summarize, giving the interviewer clean lines to quote in their report.</p>
+        </div>
+      </details>
+      <details class="qa" data-searchable data-level="2">
+        <summary>How would you reduce latency for a globally-used product? (GCA + design)<span class="qa-badge deep">Deep</span></summary>
+        <div class="body">
+          <p>First I'd clarify: which user journeys, what latency we're at versus targeting, reads vs writes, and consistency needs &mdash; I won't optimize blind. Then I'd structure it: measure where the time goes (network, compute, data) using p95/p99, not averages. Likely levers, cheapest first: serve from the edge via CDN and regional points of presence; cache hot reads; move compute and data closer to users with multi-region replication; and accept eventual consistency where the data tolerates it to avoid cross-region round-trips. I'd name the trade-off &mdash; multi-region and edge add cost and consistency complexity &mdash; and I'd measure success by p99 for the key journeys. I'd also say what would change my approach: if it's a write-heavy, strongly-consistent flow, the answer shifts toward regional write partitioning.</p>
+          <div class="say"><span class="label">Why this scores</span><p>It shows the GCA structure (clarify, measure, options, trade-off, decide, measure) and scale RRK &mdash; exactly the evidence the committee wants.</p></div>
+        </div>
+      </details>
+      <details class="qa" data-searchable data-level="2">
+        <summary>Tell me about a time you led without formal authority. (Leadership)<span class="qa-badge deep">Deep</span></summary>
+        <div class="body">
+          <p>Pick a cross-team outcome you drove over people who didn't report to you. STAR it, and emphasize the <em>how</em>: you understood each group's goals, built a shared case with data, addressed concerns, and formed a coalition rather than issuing orders. End on the result and the lesson. This maps directly to Google's emergent-leadership signal &mdash; stepping up across functions when your skills are relevant, then stepping back &mdash; which is exactly what scales to director level.</p>
+        </div>
+      </details>
+      <details class="qa" data-searchable data-level="2">
+        <summary>Estimate how many photos are uploaded to a service per day. (GCA estimation)<span class="qa-badge deep">Deep</span></summary>
+        <div class="body">
+          <p>They're testing structured estimation, not the exact number. I'd state assumptions and build up: total users, fraction active daily, average uploads per active user per day, then multiply &mdash; and sanity-check the order of magnitude against something known. I'd call out the biggest sources of uncertainty and how I'd validate them with real data. The signal is a clean, auditable chain of reasoning with explicit assumptions, and the humility to say where I might be off &mdash; classic GCA plus intellectual humility.</p>
+        </div>
+      </details>
+      <details class="qa" data-searchable data-level="1">
+        <summary>Give an example of putting the user first. (Googleyness)<span class="qa-badge core">Core</span></summary>
+        <div class="body">
+          <p>Choose a real decision where you prioritized user benefit over an internal preference, a deadline, or a shiny technical choice &mdash; and show the trade-off you accepted to do it. Keep it concrete and quantify the user impact if you can. This hits Googleyness's "put the user first" directly; the key is that the user benefit visibly drove the decision, not hindsight narration.</p>
+        </div>
+      </details>
+      <details class="qa" data-searchable data-level="2">
+        <summary>Tell me about feedback that changed how you lead. (Googleyness: value feedback + humility)<span class="qa-badge trap">Trap</span></summary>
+        <div class="body">
+          <p>Pick real, slightly painful feedback you acted on &mdash; not a humble-brag. Describe the feedback, your honest first reaction, the concrete change you made, and the result. Google explicitly values feedback and intellectual humility, so the willingness to be wrong and adapt is the signal. Choosing trivial feedback or getting defensive is the trap; thanking the person who gave it is a nice touch.</p>
+        </div>
+      </details>
+      <details class="qa" data-searchable data-level="3">
+        <summary>How would you design a system to serve search suggestions for billions of users? (scale design)<span class="qa-badge deep">Deep</span></summary>
+        <div class="body">
+          <p>Clarify first: latency target (this must feel instant, so tens of milliseconds), read-dominated, freshness needs, and global reach. High level: precompute and rank candidate suggestions offline, serve them from in-memory data structures (e.g., prefix tries) behind a heavily cached, edge-distributed read path, with multi-region replicas close to users. Writes (updating suggestions from new query trends) happen asynchronously and converge &mdash; eventual consistency is fine here. I'd name trade-offs: freshness vs latency, memory cost of precomputation, and personalization vs cacheability. Reliability via SLOs and graceful degradation (fall back to less personalized results if a region is down). I'd keep it at component-and-trade-off altitude and call out what I'd measure: p99 latency and suggestion quality.</p>
+        </div>
+      </details>
+      <details class="qa" data-searchable data-level="3">
+        <summary>How do you make a high-stakes decision with incomplete information? (GCA + Leadership)<span class="qa-badge deep">Deep</span></summary>
+        <div class="body">
+          <p>I classify it first: reversible or one-way door? If reversible, I make a good-enough call quickly and instrument it so reality teaches us &mdash; speed is an advantage and bias-to-action is Googley. If it's irreversible, I invest in reducing the uncertainty that matters most: time-boxed spikes, a small experiment, or customer data to de-risk the irreversible part, while making my assumptions explicit so we can revisit them. I'd involve the right people for judgment and dissent, then decide and own it. The signal is structured reasoning under ambiguity plus the humility to change course as data arrives.</p>
+        </div>
+      </details>
+      <details class="qa" data-searchable data-level="3">
+        <summary>As a director, how would you improve the reliability of a critical service without halting feature work? (Leadership + RRK)<span class="qa-badge deep">Deep</span></summary>
+        <div class="body">
+          <p>I'd make reliability measurable and shared, not heroic. Set SLOs grounded in what users actually need and an error budget; when the budget is healthy we ship features, when it's spent we shift to reliability &mdash; that gives an objective, blameless lever instead of a tug-of-war. I'd invest in the highest-leverage fixes (the few failure modes causing most pain), strengthen observability so we cut time-to-restore, and run blameless post-mortems so we fix classes of problems. Humane, team-owned on-call keeps it sustainable. The framing for stakeholders: reliability is a feature with a budget, and we're spending it deliberately.</p>
+        </div>
+      </details>
+      <details class="qa" data-searchable data-level="2">
+        <summary>Tell me about a time you disagreed with a decision and what you did. (Leadership + Googleyness)<span class="qa-badge trap">Trap</span></summary>
+        <div class="body">
+          <p>Show backbone and collaboration together. Pick a real disagreement where you made your case with data and respect, listened genuinely, and then either changed the outcome or committed fully once the decision was made (disagree and commit). Avoid stories where you were just right and everyone else was wrong &mdash; that misses the humility and care-for-the-team signals. The strongest version shows you can push hard, stay user- and team-focused, and disagree without damage.</p>
+        </div>
+      </details>
+      <details class="qa" data-searchable data-level="1">
+        <summary>Why Google, and why this role? (fit)<span class="qa-badge core">Core</span></summary>
+        <div class="body">
+          <p>Be specific and two-directional. Connect to something real &mdash; Google's scale and the engineering problems that come with serving billions, its user-first culture, or the particular org's mission &mdash; and tie it to where you do your best work and how you want to grow as a leader. Avoid generic praise and avoid making it only about what you get. Showing you understand and are drawn to how Google actually operates (ambiguity, user focus, data-driven decisions) signals fit better than enthusiasm alone.</p>
+        </div>
+      </details>
+    </div>
+
+    <div class="callout warn">
+      <span class="label">Keep it current</span>
+      <p>Google's process, attribute wording (e.g., the recent Googleyness clarification), and leveling evolve. Treat this as a well-grounded snapshot and verify the latest specifics on Google's official careers site and recruiter guidance before your loop.</p>
+    </div>
+
+    
+    <div class="recap"><span class="label">&#129504; Remember it</span>
+      <p>At Google you&#8217;re <span class="hook">writing evidence for an absent reader</span>, scored on four attributes.</p>
+      <ul>
+        <li>Structure every answer so a stranger could reconstruct your reasoning.</li>
+        <li>Map each story to GCA / RRK / Leadership / Googleyness.</li>
+        <li>Show Googleyness with behavior; never just claim it.</li>
+      </ul>
+    </div>
+
+    <div class="pagenav">
+      <a class="card" href="prep-path.html"><span class="tag">Plan &rarr;</span><h3>Prep Path</h3></a>
+      <a class="card" href="system-design.html"><span class="tag">Go deeper &rarr;</span><h3>System Design</h3></a>
+    </div>
+
+  </main>
+</div>
+</div>
+
+<script src="assets/js/main.js"></script>
+</body>
+</html>

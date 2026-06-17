@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="warm">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Design a Payment / Digital Wallet — Director's Edge</title>
+<meta name="description" content="System design deep-dive: Design a Payment / Digital Wallet — requirements, capacity, API, data model, architecture diagram, scaling, failure, trade-offs." />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="assets/css/styles.css" />
+</head>
+<body data-theme="warm">
+<section class="hero">
+  <span class="eyebrow">System design deep-dive</span>
+  <h1>Design a Payment / Digital Wallet</h1>
+  <p class="lead">A deep-dive into moving money correctly: idempotency keys, a double-entry ledger as source of truth, sagas for the external bank, and reconciliation.</p>
+</section>
+<div class="wrap section">
+<div class="page-layout">
+  <aside class="toc"><strong>On this page</strong>
+    <a href="#think">How to think (step by step)</a>
+    <a href="#reqs">1 · Requirements</a>
+    <a href="#capacity">2 · Capacity</a>
+    <a href="#api">3 · API</a>
+    <a href="#data">4 · Data model</a>
+    <a href="#arch">5 · Architecture</a>
+    <a href="#hard">6 · The hard parts</a>
+    <a href="#scale">7 · Scaling</a>
+    <a href="#tradeoffs">8 · Trade-offs</a>
+    <a href="#subsystems">Key sub-systems</a>
+    <a href="#bottlenecks">Bottlenecks</a>
+    <a href="#levels">Senior / Staff / Principal</a>
+    <a href="#faq">Follow-up Q&amp;A</a>
+  </aside>
+  <main>
+    <div class="callout"><span class="label">&#11088; At Google</span><p>Drive it top-down: requirements &rarr; scale &rarr; design &rarr; bottleneck &rarr; trade-offs, narrating assumptions. Back to <a href="system-design-cases.html">System Design II</a>.</p></div>
+    <div class="story"><span class="label">&#128214; The story</span>
+      <p>Money is the one domain where &lsquo;mostly correct&rsquo; is a disaster. The entire design exists to guarantee that every cent is accounted for, twice, and that no failure or retry ever creates or destroys money.</p>
+      <p>So the source of truth is a <em>double-entry ledger</em> &mdash; every movement is a balanced pair of entries you can audit forever. Idempotency keys make retries safe, sagas handle the bank that you can&#8217;t transactionally control, and a reconciliation job assumes drift will happen and catches it.</p>
+    </div>
+
+            <div class="tools"><span class="tlabel">&#128295; Typical tools</span><span class="tool">PostgreSQL</span><span class="tool">Apache Kafka</span><span class="tool">Stripe</span><span class="tool">Temporal (saga)</span></div>
+
+    <h2 id="think">How to think about it &mdash; step by step</h2>
+    <div class="steps">
+      <div class="step"><h4>Adopt the mindset: correctness first</h4><p>Never lose or double-count money. <span class="why">Why:</span> this domain trades speed for certainty, unlike most.</p></div>
+      <div class="step"><h4>Make the ledger the truth</h4><p>A double-entry, append-only ledger; balances are derived, never edited. <span class="why">Why:</span> every cent is auditable and nothing is silently overwritten.</p></div>
+      <div class="step"><h4>Make retries safe</h4><p>An idempotency key returns the first result instead of charging again. <span class="why">Why:</span> networks retry, and a double charge is unacceptable.</p></div>
+      <div class="step"><h4>Coordinate the bank with a saga</h4><p>You can't transactionally control an external bank, so do the step and compensate (reverse) on failure. <span class="why">Why:</span> distributed steps need a recovery story.</p></div>
+      <div class="step"><h4>Assume drift, then catch it</h4><p>A daily reconciliation compares your ledger to the bank. <span class="why">Why:</span> trust nothing; verify.</p></div>
+    </div>
+
+    <h2 id="reqs">1 &middot; Requirements</h2>
+    <p><strong>Functional:</strong> charge a customer, transfer funds, refund; show balance &amp; history. <strong>Non-functional:</strong> correctness above all (never lose or double-count money), full auditability, strong consistency for balances, and resilience to retries and partial failures. Throughput is secondary to <em>getting every cent right</em>.</p>
+    <h2 id="capacity">2 &middot; Capacity</h2>
+    <p>Even at thousands of transactions/sec the volume is modest; the difficulty is <strong>exactly-once</strong> money movement across services and external banks that can time out, retry, or fail mid-flow.</p>
+    <h2 id="api">3 &middot; API</h2>
+    <ul class="clean">
+      <li><code>POST /v1/payments</code> with a client <strong>Idempotency-Key</strong> &rarr; charge; replaying the same key returns the original result, never a second charge.</li>
+      <li><code>POST /v1/refunds</code>, <code>GET /v1/accounts/{id}/balance</code>, <code>GET /v1/accounts/{id}/transactions</code>.</li>
+    </ul>
+    <h2 id="data">4 &middot; Data model</h2>
+    <ul class="clean">
+      <li><strong>Double-entry ledger</strong> (source of truth): every movement is two entries (debit one account, credit another) that must sum to zero &mdash; <code>ledger_entry(txnId, accountId, direction, amount, currency, ts)</code>.</li>
+      <li><strong>Idempotency keys</strong>: <code>idempotency(key, requestHash, resultRef, status)</code>.</li>
+      <li>Balances are derived/materialized from the ledger, not edited in place.</li>
+    </ul>
+    <h2 id="arch">5 &middot; Architecture</h2>
+    <figure class="diagram">
+      <svg viewBox="0 0 860 210" role="img" aria-label="Payment service writes a double-entry ledger, calls the bank via a saga, and runs async fraud checks and reconciliation">
+        <defs><marker id="arPAY" markerWidth="9" markerHeight="9" refX="7" refY="4.5" orient="auto"><path d="M0,0 L9,4.5 L0,9 z" fill="var(--accent)"/></marker></defs>
+        <rect class="svg-box" x="8" y="74" width="84" height="52" rx="9"/><text class="svg-txt" x="50" y="104" text-anchor="middle">Client</text>
+        <rect class="svg-box" x="110" y="74" width="104" height="52" rx="9"/><text class="svg-txt" x="162" y="96" text-anchor="middle">API gateway</text><text class="svg-sub" x="162" y="113" text-anchor="middle">idempotency-key</text>
+        <rect class="svg-accent" x="232" y="74" width="130" height="52" rx="9"/><text class="svg-txt" x="297" y="96" text-anchor="middle">Payment svc</text><text class="svg-sub" x="297" y="113" text-anchor="middle">saga orchestrator</text>
+        <rect class="svg-good" x="392" y="20" width="150" height="50" rx="9"/><text class="svg-txt" x="467" y="42" text-anchor="middle">Ledger DB</text><text class="svg-sub" x="467" y="58" text-anchor="middle">double-entry, ACID</text>
+        <rect class="svg-box" x="392" y="86" width="150" height="48" rx="9"/><text class="svg-txt" x="467" y="108" text-anchor="middle">Bank / PSP</text><text class="svg-sub" x="467" y="124" text-anchor="middle">external</text>
+        <rect class="svg-accent2" x="392" y="150" width="150" height="46" rx="9"/><text class="svg-txt" x="467" y="171" text-anchor="middle">Fraud (async)</text><text class="svg-sub" x="467" y="186" text-anchor="middle">queue</text>
+        <rect class="svg-box" x="600" y="86" width="160" height="48" rx="9"/><text class="svg-txt" x="680" y="108" text-anchor="middle">Reconciliation</text><text class="svg-sub" x="680" y="124" text-anchor="middle">batch vs bank</text>
+        <g class="svg-line-acc">
+          <line x1="92" y1="100" x2="108" y2="100" marker-end="url(#arPAY)"/>
+          <line x1="214" y1="100" x2="230" y2="100" marker-end="url(#arPAY)"/>
+          <line x1="362" y1="92" x2="390" y2="48" marker-end="url(#arPAY)"/>
+          <line x1="362" y1="100" x2="390" y2="106" marker-end="url(#arPAY)"/>
+          <line x1="362" y1="112" x2="390" y2="166" marker-end="url(#arPAY)"/>
+          <line x1="542" y1="110" x2="598" y2="110" marker-end="url(#arPAY)"/>
+        </g>
+      </svg>
+      <figcaption>The Payment service checks the idempotency key, records the movement in the ACID double-entry ledger, and coordinates the external bank call as a <strong>saga</strong> (with compensating reversal on failure). Fraud scoring runs async; a reconciliation job continuously compares our ledger to the bank&#8217;s settlement files.</figcaption>
+    </figure>
+    <h2 id="hard">6 &middot; The hard parts</h2>
+    <ul class="clean">
+      <li><strong>Exactly-once</strong>: the idempotency key makes a retried request return the first result instead of charging twice.</li>
+      <li><strong>Distributed transaction</strong>: you can&#8217;t two-phase-commit an external bank, so use a <strong>saga</strong> &mdash; do the step, and on failure run a compensating action (reverse the ledger entry).</li>
+      <li><strong>Auditability</strong>: the append-only double-entry ledger means every balance is provable and nothing is ever silently overwritten.</li>
+      <li><strong>Reconciliation</strong>: assume drift happens; a daily job catches and flags mismatches against the bank.</li>
+    </ul>
+    <h2 id="scale">7 &middot; Scaling &amp; failure</h2>
+    <ul class="clean">
+      <li>Partition the ledger by account; keep a single writer per account to preserve consistency.</li>
+      <li>Replicate synchronously across AZs &mdash; for money you accept higher latency for durability.</li>
+      <li>On crash mid-saga, a recovery process resumes or compensates from the saga log; idempotency makes replays safe.</li>
+    </ul>
+    <h2 id="tradeoffs">8 &middot; Trade-offs</h2>
+    <ul class="clean">
+      <li>Correctness &amp; auditability over latency/throughput &mdash; the rare domain where you pick consistency every time.</li>
+      <li>Saga (eventual consistency across services) over impossible cross-system 2PC.</li>
+      <li>Async fraud (don&#8217;t block the charge) with the ability to reverse later.</li>
+    </ul>
+        <h2 id="subsystems">Key sub-systems</h2>
+    <ul class="clean">
+      <li><strong>Payment API</strong> &mdash; idempotency-key entry point.</li>
+      <li><strong>Ledger</strong> &mdash; double-entry, append-only, ACID.</li>
+      <li><strong>Saga orchestrator</strong> &mdash; external bank steps + compensation.</li>
+      <li><strong>Fraud service</strong> &mdash; async scoring.</li>
+      <li><strong>Reconciliation</strong> &mdash; daily vs bank settlement.</li>
+    </ul>
+    <h2 id="bottlenecks">Bottlenecks &amp; what to optimize next</h2>
+    <ul class="clean">
+      <li>Correctness is the constraint, not throughput &mdash; single-writer per account, synchronous replication.</li>
+      <li>External bank failures &mdash; sagas with compensating reversals; reconcile to catch drift.</li>
+    </ul>
+    <h2 id="levels">Senior &middot; Staff &middot; Principal</h2>
+    <div class="ladder">
+      <div class="lv s"><span class="tier">Senior</span><p>Builds the ledger, idempotency, and a saga for the bank.</p></div>
+      <div class="lv t"><span class="tier">Staff</span><p>Handles exactly-once movement, reconciliation, and audit.</p></div>
+      <div class="lv p"><span class="tier">Principal</span><p>Raises multi-currency/FX, regulatory compliance (PCI, AML), and ledger partitioning at global scale.</p></div>
+    </div>
+    <h2 id="faq">Common follow-up questions</h2>
+    <details class="qa"><summary>How do you guarantee no double-charge on retry?</summary><div class="body"><p>An idempotency key &mdash; a replayed request returns the original result instead of charging again.</p></div></details>
+    <details class="qa"><summary>Why a double-entry ledger?</summary><div class="body"><p>Every movement is a balanced pair of append-only entries, so balances are derivable, auditable, and never silently overwritten.</p></div></details>
+    <details class="qa"><summary>How do you handle a step failing at the bank?</summary><div class="body"><p>A saga: do each step and, on failure, run a compensating action (reverse the ledger entry); reconcile daily against the bank.</p></div></details>
+
+    <div class="recap"><span class="label">&#129504; Remember it</span>
+      <p>Money = <span class="hook">correctness and auditability over everything</span>; ledger + idempotency + saga.</p>
+      <ul>
+        <li>Double-entry, append-only ledger is the source of truth.</li>
+        <li>Idempotency keys make retried charges safe (exactly-once).</li>
+        <li>Use a saga (compensating actions) for the external bank; reconcile daily.</li>
+      </ul>
+    </div>
+
+    <div class="pagenav">
+      <a class="card" href="sd-ride-hailing.html"><span class="tag">&larr; Previous</span><h3>Ride-Hailing</h3></a>
+      <a class="card" href="sd-ticket-booking.html"><span class="tag">Next deep-dive &rarr;</span><h3>Ticket Booking</h3></a>
+    </div>
+  </main>
+</div>
+</div>
+<script src="assets/js/main.js"></script>
+</body>
+</html>
