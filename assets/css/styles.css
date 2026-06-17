@@ -808,3 +808,38 @@ pre.code .c { color: var(--text-dim); }
 .gb.ok h4 { color: var(--good); }
 .gb.no h4 { color: var(--bad); }
 .gb code { font-size: .82rem; }
+
+/* ===========================================================
+   v17 — mobile off-canvas sidebar (drawer) + scrim
+   Fixes: on narrow screens the sidebar pushed content into a
+   sliver. Below 900px the sidebar slides away off-canvas, the
+   content takes the full width, and a hamburger toggles it.
+   =========================================================== */
+.scrim {
+  position: fixed; inset: 0; z-index: 90;
+  background: rgba(20,16,8,.45);
+  opacity: 0; visibility: hidden; transition: opacity .25s;
+}
+.scrim.show { opacity: 1; visibility: visible; }
+
+@media (max-width: 900px) {
+  /* content uses the whole width */
+  .app-main { margin-left: 0 !important; }
+
+  /* sidebar becomes a slide-in drawer */
+  .sidebar {
+    transform: translateX(-100%);
+    width: 300px; max-width: 86vw;
+    box-shadow: 0 0 40px -8px rgba(0,0,0,.5);
+    z-index: 100;
+  }
+  .sidebar.open { transform: translateX(0); }
+
+  /* show the hamburger in the topbar */
+  .menu-btn { display: grid !important; }
+}
+
+/* keep the scrim hidden on wide screens regardless of JS state */
+@media (min-width: 901px) {
+  .scrim { display: none; }
+}
