@@ -1,0 +1,378 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>System Design — Director's Edge</title>
+<meta name="description" content="Step-by-step system design for leaders: vertical vs horizontal scaling, load balancing, caching, business continuity (BCP) and disaster recovery (DR), explained with simple graphics." />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="assets/css/styles.css" />
+</head>
+<body>
+
+<header class="site">
+  <nav class="nav">
+    <a class="brand" href="index.html"><span class="logo">DE</span><span>Director's Edge<small>Engineering Leadership Prep</small></span></a>
+    <button class="menu-btn" aria-label="Menu">☰</button>
+    <div class="nav-links">
+      <a href="fundamentals.html">Fundamentals</a>
+      <a href="system-design.html">System Design</a>
+      <a href="tech-radar.html">Tech Radar</a>
+      <a href="leadership.html">Leadership &amp; Delivery</a>
+      <a href="security.html">Security</a>
+      <a href="behavioral.html">Behavioral</a>
+      <button class="theme-toggle" aria-label="Toggle theme">☀</button>
+    </div>
+  </nav>
+</header>
+
+<section class="hero">
+  <div class="wrap">
+    <span class="eyebrow">Pillar 2</span>
+    <h1>System Design</h1>
+    <p class="lead">You won't be asked to draw boxes for an hour — you'll be asked to reason about scale, cost, and failure like someone who's accountable when the system goes down at 2 a.m. Here's the vocabulary and a repeatable way to answer.</p>
+  </div>
+</section>
+
+<div class="wrap section">
+<div class="page-layout">
+
+  <aside class="toc">
+    <strong>On this page</strong>
+    <a href="#framework">A 6-step framework</a>
+    <a href="#vertical">Vertical scaling</a>
+    <a href="#horizontal">Horizontal scaling</a>
+    <a href="#lb">Load balancing</a>
+    <a href="#cache">Caching</a>
+    <a href="#bcp">Business continuity (BCP)</a>
+    <a href="#dr">Disaster recovery (DR)</a>
+    <a href="#rto-rpo">RTO &amp; RPO</a>
+    <a href="#questions">Practice questions</a>
+  </aside>
+
+  <main>
+
+    <!-- ===================== FRAMEWORK ===================== -->
+    <h2 id="framework">A 6-step framework for any design question</h2>
+    <p>When asked "how would you design X," resist jumping to a solution. Walk this path out loud — it shows structured thinking, which matters more than any specific component choice.</p>
+
+    <figure class="diagram">
+      <svg viewBox="0 0 920 130" role="img" aria-label="Six step framework">
+        <!-- 6 connected steps -->
+        <g>
+          <rect class="svg-accent" x="6"   y="35" width="135" height="60" rx="10"/>
+          <text class="svg-txt" x="73"  y="60" text-anchor="middle">1 · Clarify</text>
+          <text class="svg-sub" x="73"  y="78" text-anchor="middle">scope &amp; scale</text>
+
+          <rect class="svg-box" x="156" y="35" width="135" height="60" rx="10"/>
+          <text class="svg-txt" x="223" y="60" text-anchor="middle">2 · Constraints</text>
+          <text class="svg-sub" x="223" y="78" text-anchor="middle">SLA, budget, traffic</text>
+
+          <rect class="svg-box" x="306" y="35" width="135" height="60" rx="10"/>
+          <text class="svg-txt" x="373" y="60" text-anchor="middle">3 · High level</text>
+          <text class="svg-sub" x="373" y="78" text-anchor="middle">main components</text>
+
+          <rect class="svg-box" x="456" y="35" width="135" height="60" rx="10"/>
+          <text class="svg-txt" x="523" y="60" text-anchor="middle">4 · Deep dive</text>
+          <text class="svg-sub" x="523" y="78" text-anchor="middle">data &amp; bottlenecks</text>
+
+          <rect class="svg-box" x="606" y="35" width="135" height="60" rx="10"/>
+          <text class="svg-txt" x="673" y="60" text-anchor="middle">5 · Scale &amp; fail</text>
+          <text class="svg-sub" x="673" y="78" text-anchor="middle">what breaks first</text>
+
+          <rect class="svg-accent2" x="756" y="35" width="158" height="60" rx="10"/>
+          <text class="svg-txt" x="835" y="60" text-anchor="middle">6 · Trade-offs</text>
+          <text class="svg-sub" x="835" y="78" text-anchor="middle">cost, risk, team</text>
+        </g>
+        <g class="svg-line-acc">
+          <line x1="141" y1="65" x2="156" y2="65"/><line x1="291" y1="65" x2="306" y2="65"/>
+          <line x1="441" y1="65" x2="456" y2="65"/><line x1="591" y1="65" x2="606" y2="65"/>
+          <line x1="741" y1="65" x2="756" y2="65"/>
+        </g>
+      </svg>
+      <figcaption>Always start at step 1. Interviewers reward the person who asks "how many users?" before drawing anything.</figcaption>
+    </figure>
+
+    <div class="say">
+      <span class="label">Say it like a director</span>
+      <p>"Before I design anything, I want to understand the load we're solving for and what 'good' means here — is this 1,000 users or 100 million, and are we optimizing for cost, latency, or reliability? The right architecture for a startup MVP is the wrong one for a regulated bank, so let me anchor on the constraints first."</p>
+    </div>
+
+    <!-- ===================== VERTICAL ===================== -->
+    <h2 id="vertical">Vertical scaling — "scale up"</h2>
+    <p>Make a single machine more powerful: add CPU, RAM, faster disks. It's the simplest path because the application usually doesn't change. But there's a ceiling — you can only buy so big a box — and that box is a single point of failure.</p>
+
+    <figure class="diagram">
+      <svg viewBox="0 0 600 200" role="img" aria-label="Vertical scaling: one server growing bigger">
+        <rect class="svg-box" x="60"  y="120" width="70" height="50"  rx="8"/>
+        <text class="svg-sub" x="95"  y="150" text-anchor="middle">small</text>
+        <rect class="svg-box" x="190" y="95"  width="80" height="75"  rx="8"/>
+        <text class="svg-sub" x="230" y="138" text-anchor="middle">medium</text>
+        <rect class="svg-accent" x="330" y="55" width="95" height="115" rx="8"/>
+        <text class="svg-txt" x="377" y="118" text-anchor="middle">large</text>
+        <text class="svg-sub" x="377" y="136" text-anchor="middle">(more CPU/RAM)</text>
+        <line class="svg-line-acc" x1="135" y1="150" x2="185" y2="135" marker-end="url(#ar)"/>
+        <line class="svg-line-acc" x1="275" y1="130" x2="325" y2="115" marker-end="url(#ar)"/>
+        <text class="svg-sub" x="500" y="115" text-anchor="middle" style="font-size:13px">⚠ has a hard ceiling</text>
+        <defs><marker id="ar" markerWidth="9" markerHeight="9" refX="7" refY="4.5" orient="auto"><path d="M0,0 L9,4.5 L0,9 z" fill="var(--accent)"/></marker></defs>
+      </svg>
+      <figcaption>Vertical scaling: same architecture, bigger machine. Easy, but bounded and a single point of failure.</figcaption>
+    </figure>
+
+    <div class="grid cols-2">
+      <div class="card"><h3>✅ Strengths</h3><p>Simple, no code changes, no distributed-systems complexity, great for databases that are hard to shard, lowest operational overhead to start.</p></div>
+      <div class="card"><h3>⚠ Limits</h3><p>Hard hardware ceiling, expensive at the top end, single point of failure, usually needs downtime to resize, doesn't improve fault tolerance.</p></div>
+    </div>
+
+    <!-- ===================== HORIZONTAL ===================== -->
+    <h2 id="horizontal">Horizontal scaling — "scale out"</h2>
+    <p>Add more machines and spread the work across them. This is how internet-scale systems grow. It removes the single-machine ceiling and improves fault tolerance — if one node dies, others carry on — but it requires the application to be stateless and introduces a load balancer and distributed-systems concerns.</p>
+
+    <figure class="diagram">
+      <svg viewBox="0 0 620 260" role="img" aria-label="Horizontal scaling: load balancer in front of many servers">
+        <!-- users -->
+        <text class="svg-sub" x="60" y="125" text-anchor="middle">users</text>
+        <circle class="svg-box" cx="60" cy="95" r="18"/>
+        <!-- LB -->
+        <rect class="svg-accent" x="170" y="75" width="120" height="60" rx="10"/>
+        <text class="svg-txt" x="230" y="100" text-anchor="middle">Load</text>
+        <text class="svg-txt" x="230" y="120" text-anchor="middle">Balancer</text>
+        <line class="svg-line-acc" x1="80" y1="100" x2="168" y2="105" marker-end="url(#ar2)"/>
+        <!-- servers -->
+        <rect class="svg-good" x="400" y="20"  width="150" height="48" rx="9"/>
+        <text class="svg-txt" x="475" y="49" text-anchor="middle">Server 1</text>
+        <rect class="svg-good" x="400" y="86"  width="150" height="48" rx="9"/>
+        <text class="svg-txt" x="475" y="115" text-anchor="middle">Server 2</text>
+        <rect class="svg-good" x="400" y="152" width="150" height="48" rx="9"/>
+        <text class="svg-txt" x="475" y="181" text-anchor="middle">Server 3</text>
+        <rect class="svg-box" x="400" y="214" width="150" height="34" rx="9" stroke-dasharray="5 4"/>
+        <text class="svg-sub" x="475" y="236" text-anchor="middle">…add more as needed</text>
+        <g class="svg-line-acc">
+          <line x1="290" y1="100" x2="398" y2="44"  marker-end="url(#ar2)"/>
+          <line x1="290" y1="105" x2="398" y2="110" marker-end="url(#ar2)"/>
+          <line x1="290" y1="110" x2="398" y2="176" marker-end="url(#ar2)"/>
+        </g>
+        <defs><marker id="ar2" markerWidth="9" markerHeight="9" refX="7" refY="4.5" orient="auto"><path d="M0,0 L9,4.5 L0,9 z" fill="var(--accent)"/></marker></defs>
+      </svg>
+      <figcaption>Horizontal scaling: a load balancer spreads traffic across many interchangeable, stateless servers. Add capacity by adding nodes.</figcaption>
+    </figure>
+
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th></th><th>Vertical (scale up)</th><th>Horizontal (scale out)</th></tr></thead>
+        <tbody>
+          <tr><td>How</td><td>Bigger machine</td><td>More machines</td></tr>
+          <tr><td>Ceiling</td><td>Hardware limit</td><td>Near-unlimited</td></tr>
+          <tr><td>Fault tolerance</td><td>Single point of failure</td><td>Survives node loss</td></tr>
+          <tr><td>Complexity</td><td>Low</td><td>Higher (LB, state, consistency)</td></tr>
+          <tr><td>Cost curve</td><td>Cheap then steep</td><td>Linear, commodity hardware</td></tr>
+          <tr><td>Best for</td><td>Databases, quick wins, simple apps</td><td>Web/app tiers, internet scale</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="say">
+      <span class="label">Say it like a director</span>
+      <p>"In practice it's not either/or. I'd scale the database vertically first because it's simpler and many DBs don't shard cleanly, and scale the stateless app tier horizontally behind a load balancer. The architecture goal is that growth becomes a budgeting decision — add nodes — rather than a re-architecture project."</p>
+    </div>
+
+    <!-- ===================== LOAD BALANCING ===================== -->
+    <h2 id="lb">Load balancing</h2>
+    <p>A load balancer (LB) is the traffic cop that distributes incoming requests across your servers so no single one is overwhelmed. It also does health checks — if a server stops responding, the LB stops sending it traffic. It's the component that makes horizontal scaling and zero-downtime deploys possible.</p>
+    <ul class="clean">
+      <li><strong>Round robin</strong> — send each request to the next server in turn. Simple, good when servers are equal.</li>
+      <li><strong>Least connections</strong> — send to the server with the fewest active requests. Better for uneven workloads.</li>
+      <li><strong>IP hash / sticky sessions</strong> — same client goes to the same server. Needed when state isn't externalized (avoid if you can — prefer stateless).</li>
+      <li><strong>Health checks</strong> — automatically route around unhealthy nodes; the foundation of self-healing systems.</li>
+    </ul>
+
+    <!-- ===================== CACHING ===================== -->
+    <h2 id="cache">Caching</h2>
+    <p>A cache stores the results of expensive work close to where it's needed so you don't redo it. It's the highest-leverage performance tool you have — and the source of some of the nastiest bugs ("there are only two hard problems in computer science: cache invalidation and naming things").</p>
+
+    <figure class="diagram">
+      <svg viewBox="0 0 640 170" role="img" aria-label="Request checks cache before database">
+        <circle class="svg-box" cx="50" cy="85" r="20"/>
+        <text class="svg-sub" x="50" y="125" text-anchor="middle">request</text>
+        <rect class="svg-accent" x="150" y="55" width="130" height="60" rx="10"/>
+        <text class="svg-txt" x="215" y="82" text-anchor="middle">Cache</text>
+        <text class="svg-sub" x="215" y="100" text-anchor="middle">fast, in-memory</text>
+        <rect class="svg-box" x="400" y="55" width="150" height="60" rx="10"/>
+        <text class="svg-txt" x="475" y="82" text-anchor="middle">Database</text>
+        <text class="svg-sub" x="475" y="100" text-anchor="middle">slower, source of truth</text>
+        <line class="svg-line-acc" x1="72" y1="85" x2="148" y2="85" marker-end="url(#ar3)"/>
+        <text class="svg-sub" x="335" y="50" text-anchor="middle">miss →</text>
+        <line class="svg-line" x1="280" y1="85" x2="398" y2="85" marker-end="url(#ar4)" stroke-dasharray="5 4"/>
+        <text class="svg-sub" x="215" y="145" text-anchor="middle" style="fill:var(--good)">hit → return immediately</text>
+        <defs>
+          <marker id="ar3" markerWidth="9" markerHeight="9" refX="7" refY="4.5" orient="auto"><path d="M0,0 L9,4.5 L0,9 z" fill="var(--accent)"/></marker>
+          <marker id="ar4" markerWidth="9" markerHeight="9" refX="7" refY="4.5" orient="auto"><path d="M0,0 L9,4.5 L0,9 z" fill="var(--text-dim)"/></marker>
+        </defs>
+      </svg>
+      <figcaption>Read path: check the cache first (a "hit" is fast); only fall through to the database on a "miss," then store the result for next time.</figcaption>
+    </figure>
+
+    <div class="grid cols-3">
+      <div class="card"><h3>Where to cache</h3><p>Browser, CDN (edge), application memory, a dedicated cache (Redis/Memcached), and the database's own buffer. Each layer is closer to the user and faster.</p></div>
+      <div class="card"><h3>The hard part</h3><p>Invalidation — keeping cached data fresh. Strategies: TTL (expire after N seconds), write-through, and explicit eviction on change. Stale cache = wrong answers.</p></div>
+      <div class="card"><h3>Watch out for</h3><p>Cache stampede (many misses at once hammering the DB), and over-caching personalized or sensitive data. Cache the public and the hot, not the private.</p></div>
+    </div>
+
+    <!-- ===================== BCP ===================== -->
+    <h2 id="bcp">Business Continuity Planning (BCP)</h2>
+    <p>BCP is the <strong>broad</strong> plan for keeping the business running through any disruption — not just IT outages, but also loss of an office, a key vendor, or key people. It answers: "if something bad happens, how do we keep serving customers and making money?" Disaster recovery (next) is the technology subset of BCP.</p>
+
+    <div class="callout">
+      <span class="label">BCP vs. DR in one line</span>
+      <p><strong>BCP</strong> = keep the <em>whole business</em> operating. <strong>DR</strong> = restore the <em>IT systems and data</em>. DR lives inside BCP.</p>
+    </div>
+
+    <ul class="clean">
+      <li><strong>Business Impact Analysis (BIA)</strong> — which processes are critical, and what does an hour of downtime cost?</li>
+      <li><strong>Risk assessment</strong> — what could disrupt us (outage, region failure, cyber-attack, supplier loss)?</li>
+      <li><strong>Continuity strategies</strong> — redundancy, failover, manual workarounds, alternate suppliers.</li>
+      <li><strong>Communication plan</strong> — who decides, who tells customers, who tells regulators.</li>
+      <li><strong>Testing</strong> — a plan you've never rehearsed is a guess. Run game days and tabletop exercises.</li>
+    </ul>
+
+    <!-- ===================== DR ===================== -->
+    <h2 id="dr">Disaster Recovery (DR)</h2>
+    <p>DR is how you bring systems and data back after a major failure — a region outage, data corruption, ransomware. The art is matching the <em>strategy</em> (and its cost) to how much downtime and data loss the business can actually tolerate.</p>
+
+    <figure class="diagram">
+      <svg viewBox="0 0 900 150" role="img" aria-label="Four DR strategies from cheapest to fastest recovery">
+        <rect class="svg-box" x="6"   y="40" width="200" height="70" rx="10"/>
+        <text class="svg-txt" x="106" y="68" text-anchor="middle">Backup &amp; Restore</text>
+        <text class="svg-sub" x="106" y="88" text-anchor="middle">cheapest · slowest (hrs–days)</text>
+
+        <rect class="svg-box" x="232" y="40" width="200" height="70" rx="10"/>
+        <text class="svg-txt" x="332" y="68" text-anchor="middle">Pilot Light</text>
+        <text class="svg-sub" x="332" y="88" text-anchor="middle">core running, scale on need</text>
+
+        <rect class="svg-accent" x="458" y="40" width="200" height="70" rx="10"/>
+        <text class="svg-txt" x="558" y="68" text-anchor="middle">Warm Standby</text>
+        <text class="svg-sub" x="558" y="88" text-anchor="middle">scaled-down live copy (mins)</text>
+
+        <rect class="svg-accent2" x="684" y="40" width="210" height="70" rx="10"/>
+        <text class="svg-txt" x="789" y="68" text-anchor="middle">Active-Active</text>
+        <text class="svg-sub" x="789" y="88" text-anchor="middle">priciest · near-zero downtime</text>
+
+        <text class="svg-sub" x="6"   y="130">← lower cost</text>
+        <text class="svg-sub" x="800" y="130">faster recovery →</text>
+      </svg>
+      <figcaption>Four common DR strategies. Moving right buys faster recovery and less data loss — at higher cost. Pick per system, not one size for all.</figcaption>
+    </figure>
+
+    <!-- ===================== RTO RPO ===================== -->
+    <h2 id="rto-rpo">RTO &amp; RPO — the two numbers that drive DR</h2>
+    <p>These are the questions an interviewer is really probing when they ask about disaster recovery. Know them cold.</p>
+
+    <figure class="diagram">
+      <svg viewBox="0 0 760 200" role="img" aria-label="Timeline showing RPO before disaster and RTO after">
+        <line class="svg-line" x1="40" y1="110" x2="720" y2="110"/>
+        <!-- disaster point -->
+        <line x1="380" y1="55" x2="380" y2="140" stroke="var(--bad)" stroke-width="2.5"/>
+        <text class="svg-txt" x="380" y="45" text-anchor="middle" style="fill:var(--bad)">💥 Disaster</text>
+        <!-- last backup -->
+        <circle cx="250" cy="110" r="6" fill="var(--accent)"/>
+        <text class="svg-sub" x="250" y="135" text-anchor="middle">last good backup</text>
+        <!-- recovered -->
+        <circle cx="560" cy="110" r="6" fill="var(--good)"/>
+        <text class="svg-sub" x="560" y="135" text-anchor="middle">service restored</text>
+        <!-- RPO bracket -->
+        <path class="svg-line-acc" d="M250,80 L250,72 L380,72 L380,80"/>
+        <text class="svg-txt" x="315" y="64" text-anchor="middle">RPO</text>
+        <text class="svg-sub" x="315" y="172" text-anchor="middle">how much data can we lose?</text>
+        <!-- RTO bracket -->
+        <path d="M380,80 L380,72 L560,72 L560,80" fill="none" stroke="var(--accent-2)" stroke-width="2"/>
+        <text class="svg-txt" x="470" y="64" text-anchor="middle" style="fill:var(--accent-2)">RTO</text>
+        <text class="svg-sub" x="470" y="172" text-anchor="middle">how long until we're back?</text>
+      </svg>
+      <figcaption>RPO looks backward (data loss tolerance); RTO looks forward (downtime tolerance). Both are business decisions, not technical ones.</figcaption>
+    </figure>
+
+    <div class="grid cols-2">
+      <div class="card"><h3>RPO — Recovery Point Objective</h3><p>The maximum data loss you can accept, measured in time. RPO of 5 minutes means you must back up / replicate at least every 5 minutes. Tighter RPO → continuous replication → more cost.</p></div>
+      <div class="card"><h3>RTO — Recovery Time Objective</h3><p>The maximum acceptable downtime before service is restored. RTO of 1 hour means everything — detect, decide, fail over, validate — must finish within an hour. Tighter RTO → hotter standby → more cost.</p></div>
+    </div>
+
+    <div class="say">
+      <span class="label">Say it like a director</span>
+      <p>"DR design starts with two business questions, not a technology choice: how much data can we afford to lose — that's our RPO — and how long can we be down — that's our RTO. For the payments system both are near zero, so I'd justify active-active across regions. For an internal reporting tool, a nightly backup with a few hours' RTO is responsible stewardship of budget. I'd never apply one DR posture to everything."</p>
+    </div>
+
+    <div class="callout warn">
+      <span class="label">Classic trap</span>
+      <p>If asked "how do you guarantee zero downtime and zero data loss," don't say "we replicate everything." Say: "Near-zero is achievable with active-active multi-region, but it roughly doubles infrastructure cost and adds consistency complexity. I'd confirm the business truly needs it for this system before committing — otherwise it's an expensive solution to a problem we don't have."</p>
+    </div>
+
+    <!-- ===================== QUESTIONS ===================== -->
+    <h2 id="questions">Practice questions</h2>
+    <div class="search"><input type="text" data-search placeholder="Search these questions…" /></div>
+    <div class="btn-row" style="margin-top:0">
+      <button class="btn" data-open-all>Expand all</button>
+      <button class="btn" data-close-all>Collapse all</button>
+    </div>
+    <p class="no-results">No questions match your search.</p>
+
+    <div data-search-group>
+      <details class="qa" data-searchable>
+        <summary>When would you scale vertically vs. horizontally?<span class="qa-badge core">Core</span></summary>
+        <div class="body">
+          <p>Vertical first when it's simple and sufficient — especially for relational databases that don't shard cleanly, or when we just need a quick win and aren't near the hardware ceiling. Horizontal once we need fault tolerance, are approaching that ceiling, or want growth to be a matter of adding commodity nodes rather than a re-architecture. In a typical system I'd run the stateless app tier horizontally behind a load balancer and scale the database vertically until sharding or read replicas are genuinely warranted. The trade-off I'd name is simplicity and cost vs. resilience and ceiling.</p>
+        </div>
+      </details>
+
+      <details class="qa" data-searchable>
+        <summary>Our database is the bottleneck under load. Walk me through your options.<span class="qa-badge deep">Deep</span></summary>
+        <div class="body">
+          <p>I'd go cheapest-and-safest first. (1) <strong>Measure</strong> — find the actual slow queries; often it's a missing index, not a capacity problem. (2) <strong>Cache</strong> hot reads in Redis to take pressure off the DB. (3) <strong>Read replicas</strong> to offload read traffic. (4) <strong>Scale vertically</strong> for a bigger box. (5) Only then <strong>shard / partition</strong>, because that adds real complexity. Throughout, I'd be asking whether the read/write ratio or data model is the real issue. The leadership point: I escalate complexity deliberately, and I don't shard a database to avoid adding an index.</p>
+        </div>
+      </details>
+
+      <details class="qa" data-searchable>
+        <summary>What's the difference between BCP and DR?<span class="qa-badge core">Core</span></summary>
+        <div class="body">
+          <p>Business continuity is the whole-business plan for surviving any disruption — people, offices, suppliers, and systems — so we keep serving customers. Disaster recovery is the IT subset: restoring systems and data after a major failure. DR lives inside BCP. The reason I keep them distinct is that a perfect DR plan still fails the business if nobody knows who communicates with customers or which manual workaround keeps orders flowing while systems come back. Continuity is bigger than the tech.</p>
+        </div>
+      </details>
+
+      <details class="qa" data-searchable>
+        <summary>Define RTO and RPO and how they drive architecture.<span class="qa-badge core">Core</span></summary>
+        <div class="body">
+          <p>RPO is how much data we can afford to lose, in time — it sets our backup/replication frequency. RTO is how long we can be down before restored — it sets how "hot" our standby needs to be. They're business decisions that translate directly into cost: a near-zero RPO/RTO points to active-active multi-region with continuous replication; a relaxed one points to periodic backups. I always derive the architecture from these two numbers rather than picking a fashionable DR pattern and hoping it fits.</p>
+        </div>
+      </details>
+
+      <details class="qa" data-searchable>
+        <summary>Design a URL shortener at a high level. (Keep it leadership-level.)<span class="qa-badge deep">Deep</span></summary>
+        <div class="body">
+          <p>I'd clarify scale first — reads vastly outnumber writes, so this is a read-heavy, cache-friendly problem. High level: an API to create short codes, a key-value store mapping code → long URL, a cache (or CDN) in front for the hot redirects, and a load-balanced stateless app tier. Codes can be generated from a counter encoded in base-62 or a hash with collision checks. Because it's read-heavy and the data is small and immutable, caching gives us huge leverage and the DB choice is almost secondary. I'd flag analytics (click counts) as an async, eventually-consistent write so it never slows the redirect. I'm keeping this at the component-and-trade-off level rather than coding it — that's the altitude I operate at.</p>
+        </div>
+      </details>
+
+      <details class="qa" data-searchable>
+        <summary>The site is slow but CPU and memory look fine. How do you lead the investigation?<span class="qa-badge trap">Trap</span></summary>
+        <div class="body">
+          <p>"Looks fine" on averages often hides a tail problem, so first I'd look at p95/p99 latency, not averages, and at the dependencies — a slow downstream call, database lock contention, an exhausted connection pool, or a noisy neighbor. I'd have the team trace a slow request end-to-end rather than guess. As a leader my job is to prevent thrashing: insist on data before changes, one hypothesis at a time, and a clear owner for the incident. The trap here is throwing more hardware at a problem that's actually a blocked thread pool or a missing index — that wastes money and hides the real cause.</p>
+        </div>
+      </details>
+    </div>
+
+    <div class="pagenav">
+      <a class="card" href="fundamentals.html"><span class="tag">← Previous</span><h3>Fundamentals</h3></a>
+      <a class="card" href="tech-radar.html"><span class="tag">Next pillar →</span><h3>Tech Radar</h3></a>
+    </div>
+
+  </main>
+</div>
+</div>
+
+<footer class="site">
+  <div class="wrap"><span>Director's Edge — System Design</span><span>Reason about scale, cost, and failure.</span></div>
+</footer>
+<script src="assets/js/main.js"></script>
+</body>
+</html>

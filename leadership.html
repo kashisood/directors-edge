@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Leadership &amp; Delivery — Director's Edge</title>
+<meta name="description" content="Team management, project management, and release & delivery management for engineering directors — frameworks, metrics, and the language to talk about people, process, and outcomes." />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="assets/css/styles.css" />
+</head>
+<body>
+
+<header class="site">
+  <nav class="nav">
+    <a class="brand" href="index.html"><span class="logo">DE</span><span>Director's Edge<small>Engineering Leadership Prep</small></span></a>
+    <button class="menu-btn" aria-label="Menu">☰</button>
+    <div class="nav-links">
+      <a href="fundamentals.html">Fundamentals</a>
+      <a href="system-design.html">System Design</a>
+      <a href="tech-radar.html">Tech Radar</a>
+      <a href="leadership.html">Leadership &amp; Delivery</a>
+      <a href="security.html">Security</a>
+      <a href="behavioral.html">Behavioral</a>
+      <button class="theme-toggle" aria-label="Toggle theme">☀</button>
+    </div>
+  </nav>
+</header>
+
+<section class="hero">
+  <div class="wrap">
+    <span class="eyebrow">Pillar 4</span>
+    <h1>Leadership &amp; Delivery</h1>
+    <p class="lead">This is where directors are really made or broken. The technical questions check your foundation; these check whether you can grow people, run delivery predictably, and translate engineering into business outcomes.</p>
+  </div>
+</section>
+
+<div class="wrap section">
+<div class="page-layout">
+
+  <aside class="toc">
+    <strong>On this page</strong>
+    <a href="#team">Team management</a>
+    <a href="#project">Project management</a>
+    <a href="#delivery">Release &amp; delivery</a>
+    <a href="#metrics">Metrics that matter</a>
+    <a href="#difficult">Difficult situations</a>
+    <a href="#questions">Practice questions</a>
+  </aside>
+
+  <main>
+
+    <!-- ===================== TEAM ===================== -->
+    <h2 id="team">Team management</h2>
+    <p>Your product is the team. Everything else is downstream of whether you've built a healthy, capable, motivated group of people. The recurring theme directors are tested on: do you scale yourself through others, or do you stay the hero?</p>
+
+    <div class="grid cols-2">
+      <div class="card"><h3>Hire &amp; build</h3><p>Raise the bar with every hire, design the org so teams map to loosely coupled systems (Conway's Law), and create clear ladders so growth is visible. The best lever you have is who's on the team.</p></div>
+      <div class="card"><h3>Grow &amp; retain</h3><p>Regular 1:1s focused on the person, not just status. Delegate real ownership (including the right to do it differently). Give feedback early and specifically. People leave managers, not companies.</p></div>
+      <div class="card"><h3>Performance</h3><p>Address underperformance directly and kindly — set clear expectations, give support and a timeframe, and don't let it linger; nothing erodes a strong team faster than tolerated underperformance.</p></div>
+      <div class="card"><h3>Psychological safety</h3><p>The strongest predictor of team performance (Google's Project Aristotle). People must feel safe to admit mistakes, ask questions, and challenge ideas. Blameless post-mortems are this principle in action.</p></div>
+    </div>
+
+    <div class="callout">
+      <span class="label">Situational vs. servant leadership</span>
+      <p>Two frames worth naming. <strong>Situational leadership</strong>: adapt your style to the person and task — more direction for the new engineer, more delegation for the senior one. <strong>Servant leadership</strong>: your job is to remove obstacles and set people up to succeed, not to be the smartest person in the room. Most strong directors blend both.</p>
+    </div>
+
+    <div class="say">
+      <span class="label">Say it like a director</span>
+      <p>"I measure my own success by the team's output and growth without me in the room. If I'm the bottleneck or the hero, I've failed as a leader — my job is to build a group that consistently makes good decisions on its own, and to spend my energy on the few things only I can do."</p>
+    </div>
+
+    <!-- ===================== PROJECT ===================== -->
+    <h2 id="project">Project management</h2>
+    <p>You're not expected to be a certified PM, but you must run delivery predictably and talk fluently about how work flows. Know the models and, more importantly, when each fits.</p>
+
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Approach</th><th>Best when</th><th>Watch out for</th></tr></thead>
+        <tbody>
+          <tr><td><strong>Agile / Scrum</strong></td><td>Requirements evolve; you want fast feedback and incremental value.</td><td>Cargo-cult ceremonies that add process without adding value.</td></tr>
+          <tr><td><strong>Kanban</strong></td><td>Continuous flow, support/ops work, variable priorities.</td><td>No WIP limits → everything in progress, nothing done.</td></tr>
+          <tr><td><strong>Waterfall</strong></td><td>Fixed scope, heavy compliance, hardware or contractual milestones.</td><td>Late discovery of problems; little room to adapt.</td></tr>
+          <tr><td><strong>Shape Up / milestone-based</strong></td><td>Senior teams, appetite-based scoping, fewer rituals.</td><td>Needs trust and strong product framing to work.</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="callout warn">
+      <span class="label">The estimation trap</span>
+      <p>When asked "how do you make sure projects ship on time," don't promise certainty. Say: "Estimates are ranges, not promises. I reduce risk by breaking work down, shipping in thin vertical slices, tracking against forecast weekly, and surfacing slippage early rather than at the deadline. I manage scope and expectations as actively as I manage the work." Predictability comes from small batches and honest signals, not heroics.</p>
+    </div>
+
+    <h3>The iron triangle</h3>
+    <figure class="diagram">
+      <svg viewBox="0 0 460 240" role="img" aria-label="Project management triangle: scope, time, cost with quality in the middle">
+        <polygon class="svg-accent" points="230,30 430,210 30,210"/>
+        <text class="svg-txt" x="230" y="22" text-anchor="middle">Scope</text>
+        <text class="svg-txt" x="20"  y="228" text-anchor="end">Time</text>
+        <text class="svg-txt" x="440" y="228" text-anchor="start">Cost</text>
+        <text class="svg-txt" x="230" y="150" text-anchor="middle" style="fill:var(--accent-2)">Quality</text>
+      </svg>
+      <figcaption>Fix any two, and the third must flex. Push all three and quality (the middle) silently pays the price. Naming this trade-off out loud is a director move.</figcaption>
+    </figure>
+
+    <!-- ===================== DELIVERY ===================== -->
+    <h2 id="delivery">Release &amp; delivery management</h2>
+    <p>How code gets safely and repeatedly into customers' hands. Modern delivery is about making releases <strong>small, frequent, and boring</strong> — because small changes are easy to test, easy to roll back, and rarely cause big outages.</p>
+
+    <figure class="diagram">
+      <svg viewBox="0 0 900 120" role="img" aria-label="CI/CD pipeline stages">
+        <g>
+          <rect class="svg-box" x="6"   y="35" width="120" height="55" rx="9"/><text class="svg-txt" x="66"  y="68" text-anchor="middle">Commit</text>
+          <rect class="svg-box" x="156" y="35" width="120" height="55" rx="9"/><text class="svg-txt" x="216" y="62" text-anchor="middle">Build</text><text class="svg-sub" x="216" y="79" text-anchor="middle">+ unit tests</text>
+          <rect class="svg-box" x="306" y="35" width="120" height="55" rx="9"/><text class="svg-txt" x="366" y="62" text-anchor="middle">Test</text><text class="svg-sub" x="366" y="79" text-anchor="middle">integration/security</text>
+          <rect class="svg-accent" x="456" y="35" width="130" height="55" rx="9"/><text class="svg-txt" x="521" y="62" text-anchor="middle">Stage</text><text class="svg-sub" x="521" y="79" text-anchor="middle">prod-like</text>
+          <rect class="svg-good" x="616" y="35" width="130" height="55" rx="9"/><text class="svg-txt" x="681" y="62" text-anchor="middle">Deploy</text><text class="svg-sub" x="681" y="79" text-anchor="middle">canary/blue-green</text>
+          <rect class="svg-accent2" x="776" y="35" width="120" height="55" rx="9"/><text class="svg-txt" x="836" y="62" text-anchor="middle">Monitor</text><text class="svg-sub" x="836" y="79" text-anchor="middle">+ rollback</text>
+        </g>
+        <g class="svg-line-acc">
+          <line x1="126" y1="62" x2="156" y2="62"/><line x1="276" y1="62" x2="306" y2="62"/>
+          <line x1="426" y1="62" x2="456" y2="62"/><line x1="586" y1="62" x2="616" y2="62"/><line x1="746" y1="62" x2="776" y2="62"/>
+        </g>
+      </svg>
+      <figcaption>A CI/CD pipeline. The goal: every change flows through the same automated gates, so deploys are routine and reversible.</figcaption>
+    </figure>
+
+    <div class="grid cols-3">
+      <div class="card"><h3>Deployment strategies</h3><p><strong>Blue-green</strong>: run two environments, switch traffic instantly, roll back instantly. <strong>Canary</strong>: release to a small % first, watch metrics, then ramp. Both shrink blast radius.</p></div>
+      <div class="card"><h3>Feature flags</h3><p>Decouple <em>deploy</em> from <em>release</em>. Ship code dark, turn it on for a cohort, kill it instantly if it misbehaves — no redeploy. Powerful, but flag debt is real; prune them.</p></div>
+      <div class="card"><h3>Rollback &amp; recovery</h3><p>The question isn't "will it break" but "how fast can we recover." Fast, practiced rollback beats a perfect release process. This is the "time to restore" DORA metric.</p></div>
+    </div>
+
+    <div class="say">
+      <span class="label">Say it like a director</span>
+      <p>"I push teams toward small, frequent releases with automated pipelines, canary rollouts, and feature flags. The philosophy is that safety comes from a fast, reliable path to production and an even faster path to roll back — not from heavyweight approval gates. I'd rather we deploy fifty small changes a week that are each trivial to reverse than one big monthly release we all hold our breath through."</p>
+    </div>
+
+    <!-- ===================== METRICS ===================== -->
+    <h2 id="metrics">Metrics that matter</h2>
+    <p>Lead with outcomes, support with delivery health, and never weaponize metrics against individuals. The gold standard for delivery is the four <strong>DORA</strong> metrics.</p>
+
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>DORA metric</th><th>What it tells you</th></tr></thead>
+        <tbody>
+          <tr><td><strong>Deployment frequency</strong></td><td>How often you ship. Higher = smaller batches, healthier flow.</td></tr>
+          <tr><td><strong>Lead time for changes</strong></td><td>Commit → production time. Shorter = faster feedback and value.</td></tr>
+          <tr><td><strong>Change failure rate</strong></td><td>% of deploys causing a problem. Lower = better quality gates.</td></tr>
+          <tr><td><strong>Time to restore service</strong></td><td>How fast you recover from failure. The resilience number.</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="callout">
+      <span class="label">Leading vs. lagging indicators</span>
+      <p><strong>Lagging</strong> indicators tell you what already happened (revenue, churn, last quarter's incidents). <strong>Leading</strong> indicators predict the future (deploy frequency, test coverage, engagement scores). Good directors watch leading indicators so they can act <em>before</em> the lagging ones go bad.</p>
+    </div>
+
+    <div class="callout warn">
+      <span class="label">Goodhart's Law</span>
+      <p>"When a measure becomes a target, it ceases to be a good measure." Track velocity and you'll get inflated story points. Track lines of code and you'll get bloat. Use metrics to start conversations and spot trends — never as individual performance scorecards.</p>
+    </div>
+
+    <!-- ===================== DIFFICULT ===================== -->
+    <h2 id="difficult">Difficult situations (have a frame ready)</h2>
+    <ul class="clean">
+      <li><strong>Underperformer:</strong> diagnose (skill vs. will vs. fit), set clear expectations, support with a timeframe, document, and act decisively if it doesn't improve.</li>
+      <li><strong>Two strong engineers in conflict:</strong> hear both privately, find the shared goal, focus on behavior and impact, and align on a decision — disagree and commit.</li>
+      <li><strong>Missed deadline:</strong> communicate early, present options (cut scope, add time, add risk), own it without blame, and fix the systemic cause in the retro.</li>
+      <li><strong>Pressure to cut corners:</strong> make the trade-off explicit and its risk visible to decision-makers; take on debt deliberately and write down the payback plan.</li>
+      <li><strong>Attrition risk:</strong> understand the real driver (growth, comp, manager, burnout), act on what you can, and never be surprised — stay-interviews beat exit-interviews.</li>
+    </ul>
+
+    <!-- ===================== QUESTIONS ===================== -->
+    <h2 id="questions">Practice questions</h2>
+    <div class="search"><input type="text" data-search placeholder="Search these questions…" /></div>
+    <div class="btn-row" style="margin-top:0">
+      <button class="btn" data-open-all>Expand all</button>
+      <button class="btn" data-close-all>Collapse all</button>
+    </div>
+    <p class="no-results">No questions match your search.</p>
+
+    <div data-search-group>
+      <details class="qa" data-searchable>
+        <summary>How do you measure the success of your engineering team?<span class="qa-badge core">Core</span></summary>
+        <div class="body">
+          <p>I lead with business outcomes — did we move the metric the company cares about — then look at delivery health through the four DORA metrics: deployment frequency, lead time, change failure rate, and time to restore. I treat those as trend lines and conversation starters, not individual scorecards, because the moment a metric becomes a target it gets gamed. I also watch leading indicators of team health like engagement and on-call load, since burned-out teams produce bad lagging numbers a quarter later.</p>
+        </div>
+      </details>
+
+      <details class="qa" data-searchable>
+        <summary>How do you ensure projects are delivered on time?<span class="qa-badge trap">Trap</span></summary>
+        <div class="body">
+          <p>I don't promise certainty — I engineer predictability. Break work into thin vertical slices that each ship value, forecast in ranges, and track against that forecast weekly so slippage surfaces early, not at the deadline. When something's at risk I bring options — cut scope, move the date, or accept defined risk — rather than ask the team to be heroes. And I manage expectations with stakeholders as actively as I manage the work itself. The trap is claiming you always hit dates; the credible answer is that you make reality visible early and adjust deliberately.</p>
+        </div>
+      </details>
+
+      <details class="qa" data-searchable>
+        <summary>An engineer is underperforming. Walk me through how you handle it.<span class="qa-badge core">Core</span></summary>
+        <div class="body">
+          <p>First I diagnose the cause, because the response differs: is it a skill gap, a motivation/will issue, a role-fit problem, or something personal going on? I have a direct, kind conversation setting out specific expectations and where they're falling short, then agree on support and a clear timeframe to improve. I document, I check in frequently, and I genuinely try to help them succeed. But if it doesn't improve, I act decisively — letting underperformance linger is unfair to the rest of the team and quietly lowers everyone's bar. The throughline is candor with care.</p>
+        </div>
+      </details>
+
+      <details class="qa" data-searchable>
+        <summary>Two of your best engineers strongly disagree on a technical direction. What do you do?<span class="qa-badge deep">Deep</span></summary>
+        <div class="body">
+          <p>Disagreement among strong people is healthy — my job is to channel it. I'd hear each perspective, separate facts from preferences, and re-anchor everyone on the shared goal and the actual constraints. Often the "right" answer is "run a small spike and let data decide" if it's reversible. If it's a one-way door and they still disagree, I make the call, explain the reasoning, and ask for disagree-and-commit. What I won't do is let it fester or pick the louder voice — I want a culture where being overruled with a clear rationale is normal and safe.</p>
+        </div>
+      </details>
+
+      <details class="qa" data-searchable>
+        <summary>How do you balance shipping features with paying down technical debt?<span class="qa-badge deep">Deep</span></summary>
+        <div class="body">
+          <p>I treat tech debt as a deliberate financial decision, not a moral failing. Some debt is smart leverage to hit a market window; the danger is unmanaged debt with no payback plan. Practically, I keep a steady allocation — often around 15–20% of capacity — for debt and reliability, make the cost of debt visible in business terms (slower delivery, more incidents), and tie paydown to the areas slowing us down most. Using error budgets helps: when reliability slips below target, we shift the balance toward fixing it. The framing for stakeholders is that debt is borrowing against future velocity, and I manage the interest.</p>
+        </div>
+      </details>
+
+      <details class="qa" data-searchable>
+        <summary>How do you onboard into a new org and earn trust in the first 90 days?<span class="qa-badge core">Core</span></summary>
+        <div class="body">
+          <p>Listen before I lead. The first month is mostly learning — 1:1s with my team, peers, and stakeholders; understanding the systems, the metrics, and where the pain is. I look for a credible early win that helps the team without disrupting what's working, so I build trust through delivery rather than announcements. By 60–90 days I'd share a point of view on priorities, co-created with the team, not imposed. The mistake I avoid is arriving with a reorg and a manifesto on day one — that signals ego over understanding.</p>
+        </div>
+      </details>
+    </div>
+
+    <div class="pagenav">
+      <a class="card" href="tech-radar.html"><span class="tag">← Previous</span><h3>Tech Radar</h3></a>
+      <a class="card" href="security.html"><span class="tag">Next pillar →</span><h3>Security</h3></a>
+    </div>
+
+  </main>
+</div>
+</div>
+
+<footer class="site">
+  <div class="wrap"><span>Director's Edge — Leadership &amp; Delivery</span><span>Your product is the team.</span></div>
+</footer>
+<script src="assets/js/main.js"></script>
+</body>
+</html>

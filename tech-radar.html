@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Tech Radar — Director's Edge</title>
+<meta name="description" content="What's current in Java, Spring Boot, and AI from a developer's and a leader's perspective — enough depth to ask sharp questions and set technical direction." />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="assets/css/styles.css" />
+</head>
+<body>
+
+<header class="site">
+  <nav class="nav">
+    <a class="brand" href="index.html"><span class="logo">DE</span><span>Director's Edge<small>Engineering Leadership Prep</small></span></a>
+    <button class="menu-btn" aria-label="Menu">☰</button>
+    <div class="nav-links">
+      <a href="fundamentals.html">Fundamentals</a>
+      <a href="system-design.html">System Design</a>
+      <a href="tech-radar.html">Tech Radar</a>
+      <a href="leadership.html">Leadership &amp; Delivery</a>
+      <a href="security.html">Security</a>
+      <a href="behavioral.html">Behavioral</a>
+      <button class="theme-toggle" aria-label="Toggle theme">☀</button>
+    </div>
+  </nav>
+</header>
+
+<section class="hero">
+  <div class="wrap">
+    <span class="eyebrow">Pillar 3</span>
+    <h1>Tech Radar</h1>
+    <p class="lead">A director doesn't need to write the code — but you must know what's current well enough to set direction, ask sharp questions, and avoid being sold a fad. Here's the state of Java, Spring Boot, and AI as of mid-2026.</p>
+  </div>
+</section>
+
+<div class="wrap section">
+<div class="page-layout">
+
+  <aside class="toc">
+    <strong>On this page</strong>
+    <a href="#stance">A leader's stance on "latest"</a>
+    <a href="#java">Java</a>
+    <a href="#spring">Spring Boot</a>
+    <a href="#ai">AI for developers</a>
+    <a href="#questions">Practice questions</a>
+  </aside>
+
+  <main>
+
+    <div class="callout">
+      <span class="label">Currency note</span>
+      <p>Versions below reflect mid-2026. Treat specifics as a snapshot — what interviewers really test is whether you understand the <em>direction of travel</em> and can reason about adoption, not whether you memorized a point release.</p>
+    </div>
+
+    <h2 id="stance">A leader's stance on "latest"</h2>
+    <p>The wrong answer to "are you using the latest version?" is reflexive yes <em>or</em> no. The director answer is about a deliberate policy:</p>
+    <ul class="clean">
+      <li><strong>Standardize on LTS.</strong> For Java, run the Long-Term-Support releases in production; treat interim releases as previews for the team to learn from.</li>
+      <li><strong>Stay current, not bleeding-edge.</strong> Being two LTS versions behind is a security and hiring liability; being on a release that shipped last month is an availability risk.</li>
+      <li><strong>Upgrades are a capability, not a project.</strong> If upgrading is scary, that's a signal about test coverage and coupling — fix the root cause so upgrades become routine.</li>
+      <li><strong>Adopt for value, not novelty.</strong> "What problem does this solve for us, and what does it cost to run and hire for?" beats "it's new."</li>
+    </ul>
+
+    <!-- ===================== JAVA ===================== -->
+    <h2 id="java">Java</h2>
+    <p>Java moved to a six-month release cadence years ago, with an LTS roughly every two years. As of mid-2026, <strong>Java 25 is the current LTS</strong> (released September 2025) and <strong>Java 26</strong> is the latest interim (non-LTS) release (March 2026). Java 21 (2023) is the previous LTS most enterprises are on or migrating from.</p>
+
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Release</th><th>Type</th><th>Why it matters to a leader</th></tr></thead>
+        <tbody>
+          <tr><td><strong>Java 21</strong> (2023)</td><td>LTS</td><td>Brought virtual threads — a step-change for high-throughput services. The baseline many teams run today.</td></tr>
+          <tr><td><strong>Java 25</strong> (Sep 2025)</td><td>LTS</td><td>The current production target: structured concurrency, stream gatherers, the class-file API, faster startup, and quantum-resistant cryptography.</td></tr>
+          <tr><td><strong>Java 26</strong> (Mar 2026)</td><td>Interim</td><td>Performance, security, and language-expressiveness refinements. Good to track; not an LTS, so not a production standard.</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3>Concepts worth speaking to</h3>
+    <div class="grid cols-2">
+      <div class="card"><h3>Virtual threads (Project Loom)</h3><p>Lightweight threads that let you write simple blocking-style code that scales to millions of concurrent tasks. The headline reason to be on Java 21+. Hugely relevant for I/O-heavy services — fewer reasons to reach for complex reactive code.</p></div>
+      <div class="card"><h3>Structured concurrency</h3><p>Treats a group of related concurrent tasks as one unit — if one fails or is cancelled, the rest clean up. Makes concurrent code safer and easier to reason about. Stabilizing in recent releases.</p></div>
+      <div class="card"><h3>Foreign Function &amp; Memory API</h3><p>A safe, modern way to call native code and manage off-heap memory — replacing the old, dangerous JNI. Matters for performance-critical and native-interop work.</p></div>
+      <div class="card"><h3>GraalVM &amp; native images</h3><p>Ahead-of-time compilation to a native binary: near-instant startup and lower memory — valuable for serverless and containers. Trade-off: longer builds and some reflection constraints.</p></div>
+    </div>
+
+    <div class="say">
+      <span class="label">Say it like a director</span>
+      <p>"We standardize on Java LTS releases and keep within one LTS of current — today that means consolidating on 25, having come from 21. The single most impactful recent shift is virtual threads: for our I/O-bound services it lets us hit high concurrency with simple, readable code instead of a reactive stack, which lowers the bar for the whole team to maintain it."</p>
+    </div>
+
+    <!-- ===================== SPRING ===================== -->
+    <h2 id="spring">Spring Boot</h2>
+    <p>The dominant Java application framework. As of mid-2026 the current generation is <strong>Spring Boot 4.x</strong> (built on <strong>Spring Framework 7</strong>), with 4.0 having landed in late 2025. Many enterprises are still on Spring Boot 3.x (Spring Framework 6) and planning the move.</p>
+
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Generation</th><th>Built on</th><th>Highlights</th></tr></thead>
+        <tbody>
+          <tr><td><strong>Spring Boot 3.x</strong></td><td>Spring Framework 6, Jakarta EE 9+</td><td>The big <code>javax → jakarta</code> namespace move, native-image support via AOT, observability baked in. The current widely-deployed baseline.</td></tr>
+          <tr><td><strong>Spring Boot 4.x</strong></td><td>Spring Framework 7</td><td>First-class Java 25 support, built-in <strong>API versioning</strong> for HTTP endpoints, a modularized codebase (smaller jars), JSpecify null-safety, and AOT-compiled data repositories for faster startup.</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3>Concepts worth speaking to</h3>
+    <div class="grid cols-2">
+      <div class="card"><h3>AOT &amp; startup time</h3><p>Ahead-of-time processing moves work from runtime to build time. Spring Boot 4's AOT repositories pre-compile data queries, cutting startup overhead — meaningful for autoscaling and serverless where cold starts cost money.</p></div>
+      <div class="card"><h3>API versioning as a first-class feature</h3><p>Spring 7 treats endpoint versioning natively. For a leader this matters because clean versioning is how you evolve APIs without breaking partners — a governance win, not just a syntax one.</p></div>
+      <div class="card"><h3>Observability by default</h3><p>Micrometer + tracing are integrated, so metrics, traces, and logs are first-class. Encourage teams to instrument from day one — you can't run what you can't see.</p></div>
+      <div class="card"><h3>Spring AI</h3><p>Spring's abstraction layer for talking to LLMs, embeddings, and vector stores — bringing RAG and agent patterns into the familiar Spring programming model. The bridge between your Java estate and the AI section below.</p></div>
+    </div>
+
+    <div class="callout warn">
+      <span class="label">Migration reality</span>
+      <p>Major Spring upgrades (3→4) involve framework, dependency, and sometimes namespace changes. Don't promise "a weekend." Frame it as a planned initiative with test coverage as the enabler, often staged service-by-service. The director skill is sequencing the migration so it never blocks feature delivery for a whole quarter.</p>
+    </div>
+
+    <!-- ===================== AI ===================== -->
+    <h2 id="ai">AI for developers</h2>
+    <p>By 2026 the conversation has moved from "AI writes snippets" to <strong>agentic development</strong> — AI that plans work, edits across files, runs tests, and opens pull requests under human direction. A director must lead this shift thoughtfully: capture the productivity, manage the new risks.</p>
+
+    <div class="grid cols-2">
+      <div class="card"><h3>Agentic coding</h3><p>The role is shifting from writing code to <strong>orchestrating agents</strong> that write code, with the human reviewing, steering, and owning outcomes. The leverage is real; so is the need for strong review, tests, and guardrails.</p></div>
+      <div class="card"><h3>RAG — Retrieval-Augmented Generation</h3><p>Instead of relying only on what a model was trained on, you retrieve relevant documents from your own knowledge base and feed them in as context. Gives current, source-cited answers and reduces hallucination — the default pattern for enterprise AI.</p></div>
+      <div class="card"><h3>MCP — Model Context Protocol</h3><p>An open standard for connecting LLM apps to external tools and data sources in a uniform way. As MCP servers proliferate inside a company, <strong>governing</strong> them (access, security, sprawl) becomes a real platform responsibility.</p></div>
+      <div class="card"><h3>Small Language Models (SLMs)</h3><p>Smaller, task-specific models that are cheaper, faster, and can run privately. The trend is mixing big general models with many small specialized ones — better economics and data control for narrow tasks.</p></div>
+      <div class="card"><h3>Vector databases &amp; embeddings</h3><p>Embeddings turn text into numbers that capture meaning; vector DBs let you search by meaning, not keywords. The storage layer that makes RAG and semantic search work.</p></div>
+      <div class="card"><h3>Evals &amp; guardrails</h3><p>You can't manage AI quality by vibes. <strong>Evals</strong> are systematic tests of model output; <strong>guardrails</strong> constrain what models can say or do. The maturity signal that separates a toy from production AI.</p></div>
+    </div>
+
+    <div class="say">
+      <span class="label">Say it like a director</span>
+      <p>"My stance on AI is capture the leverage, manage the risk. I'd roll out AI coding assistants and agentic workflows with clear guardrails — code review stays mandatory, generated code is tested like any other, and we never paste secrets or proprietary data into tools we don't control. For product features I'd default to RAG over fine-tuning so answers stay current and sourced, and I'd insist on evals before anything AI-driven ships to customers. The developer's job is moving from writing every line to directing and verifying — I want my teams ahead of that curve, not resisting it."</p>
+    </div>
+
+    <div class="callout tip">
+      <span class="label">Sharp questions a director can ask</span>
+      <p>"What's our eval coverage before this ships?" · "Is this RAG or fine-tuned, and why?" · "Where does the context data live and who can see it?" · "What's the fallback when the model is wrong or down?" · "What does this cost per request at scale?" — asking these signals you lead AI rather than follow it.</p>
+    </div>
+
+    <!-- ===================== QUESTIONS ===================== -->
+    <h2 id="questions">Practice questions</h2>
+    <div class="search"><input type="text" data-search placeholder="Search these questions…" /></div>
+    <div class="btn-row" style="margin-top:0">
+      <button class="btn" data-open-all>Expand all</button>
+      <button class="btn" data-close-all>Collapse all</button>
+    </div>
+    <p class="no-results">No questions match your search.</p>
+
+    <div data-search-group>
+      <details class="qa" data-searchable>
+        <summary>How do you decide when to upgrade your Java / framework version?<span class="qa-badge core">Core</span></summary>
+        <div class="body">
+          <p>I run a policy, not a case-by-case scramble: standardize on LTS releases, stay within one LTS of current, and treat upgrades as routine maintenance rather than heroic projects. The enabler is test coverage — if upgrading is scary, the real problem is that we can't verify behavior, so I'd invest there first. I time the actual move to avoid clashing with major delivery, often staging it service-by-service. Falling badly behind is a security, performance, and hiring liability, so "later" is itself a decision with a cost I make visible.</p>
+        </div>
+      </details>
+
+      <details class="qa" data-searchable>
+        <summary>What's the most significant recent change in Java and why does it matter?<span class="qa-badge deep">Deep</span></summary>
+        <div class="body">
+          <p>Virtual threads, delivered in Java 21 and built on since. For I/O-bound services — which is most enterprise software — they let you reach very high concurrency using simple, blocking-style code instead of a complex reactive stack. That matters to me as a leader because it lowers the maintenance bar for the whole team: readable code that any engineer can support, without sacrificing throughput. It's a rare case where the simpler option also scales better, so I'd actively steer new services toward it.</p>
+        </div>
+      </details>
+
+      <details class="qa" data-searchable>
+        <summary>Your team wants to fine-tune an LLM. How do you respond?<span class="qa-badge trap">Trap</span></summary>
+        <div class="body">
+          <p>I'd start with "what problem are we solving, and have we tried RAG first?" For most use cases — answering from our docs, staying current — retrieval-augmented generation is cheaper, keeps answers sourced and up to date, and avoids retraining every time data changes. Fine-tuning earns its place when we need a specific style, format, or a narrow task at low latency/cost, possibly with a small model. I'd also ask about evals and data governance before either path. The trap is treating fine-tuning as the default sophisticated choice when it's often the expensive, brittle one.</p>
+        </div>
+      </details>
+
+      <details class="qa" data-searchable>
+        <summary>How would you roll out AI coding assistants across your org?<span class="qa-badge deep">Deep</span></summary>
+        <div class="body">
+          <p>Capture the leverage, manage the risk. I'd enable assistants and agentic workflows broadly, paired with non-negotiable guardrails: code review stays mandatory, AI-generated code is tested like any other, and no secrets or proprietary data go into tools we don't control. I'd measure impact with real signals (lead time, change failure rate) rather than anecdotes, share patterns that work, and retrain the team's habits around directing and verifying AI rather than hand-writing everything. The goal is a paved road that makes the safe, productive path the easy one.</p>
+        </div>
+      </details>
+
+      <details class="qa" data-searchable>
+        <summary>Explain RAG to a product manager.<span class="qa-badge core">Core</span></summary>
+        <div class="body">
+          <p>"A plain language model only knows what it was trained on, and it can confidently make things up. RAG fixes that: when a question comes in, we first search our own up-to-date documents, then hand the most relevant ones to the model as context so its answer is grounded in our real data and can cite sources. Practically, it means the assistant can answer about our latest policies without retraining, and we can trace where an answer came from — which is exactly what we need for trust and compliance."</p>
+        </div>
+      </details>
+    </div>
+
+    <div class="pagenav">
+      <a class="card" href="system-design.html"><span class="tag">← Previous</span><h3>System Design</h3></a>
+      <a class="card" href="leadership.html"><span class="tag">Next pillar →</span><h3>Leadership &amp; Delivery</h3></a>
+    </div>
+
+  </main>
+</div>
+</div>
+
+<footer class="site">
+  <div class="wrap"><span>Director's Edge — Tech Radar</span><span>Know the direction of travel, not just the version number.</span></div>
+</footer>
+<script src="assets/js/main.js"></script>
+</body>
+</html>

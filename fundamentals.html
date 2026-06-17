@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Fundamentals — Director's Edge</title>
+<meta name="description" content="The non-negotiable mental models for an Engineering Director: what you own, the vocabulary, trade-off thinking, and the core technical concepts you must speak fluently." />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="assets/css/styles.css" />
+</head>
+<body>
+
+<header class="site">
+  <nav class="nav">
+    <a class="brand" href="index.html"><span class="logo">DE</span><span>Director's Edge<small>Engineering Leadership Prep</small></span></a>
+    <button class="menu-btn" aria-label="Menu">☰</button>
+    <div class="nav-links">
+      <a href="fundamentals.html">Fundamentals</a>
+      <a href="system-design.html">System Design</a>
+      <a href="tech-radar.html">Tech Radar</a>
+      <a href="leadership.html">Leadership &amp; Delivery</a>
+      <a href="security.html">Security</a>
+      <a href="behavioral.html">Behavioral</a>
+      <button class="theme-toggle" aria-label="Toggle theme">☀</button>
+    </div>
+  </nav>
+</header>
+
+<section class="hero">
+  <div class="wrap">
+    <span class="eyebrow">Pillar 1</span>
+    <h1>Fundamentals</h1>
+    <p class="lead">Before tactics, get the mental models right. A director is hired for judgment — these are the frames and the vocabulary that judgment is expressed in.</p>
+  </div>
+</section>
+
+<div class="wrap section">
+<div class="page-layout">
+
+  <!-- TOC -->
+  <aside class="toc">
+    <strong>On this page</strong>
+    <a href="#role">What a director owns</a>
+    <a href="#mindset">The trade-off mindset</a>
+    <a href="#concepts">Core technical concepts</a>
+    <a href="#metrics">Metrics literacy</a>
+    <a href="#questions">Practice questions</a>
+  </aside>
+
+  <!-- CONTENT -->
+  <main>
+
+    <h2 id="role">What an Engineering Director actually owns</h2>
+    <p>The single biggest mistake in director interviews is answering like a senior engineer — going deep on <em>how</em> to build something. Directors are accountable for <strong>outcomes across teams</strong>, not the implementation of any one of them. Your scope is people, systems, and business results, in that order of leverage.</p>
+
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Dimension</th><th>Engineer thinks</th><th>Director thinks</th></tr></thead>
+        <tbody>
+          <tr><td>Unit of work</td><td>A task / a service</td><td>A portfolio of teams &amp; systems</td></tr>
+          <tr><td>Time horizon</td><td>Sprint to quarter</td><td>Quarter to multi-year</td></tr>
+          <tr><td>Definition of done</td><td>It works &amp; is merged</td><td>It's operated, measured, and creating value</td></tr>
+          <tr><td>Main lever</td><td>Writing code</td><td>Hiring, org design, prioritization, standards</td></tr>
+          <tr><td>Failure question</td><td>Why did this break?</td><td>Why did our <em>system</em> let this break, and how do we prevent the class of failure?</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="say">
+      <span class="label">Say it like a director</span>
+      <p>"My job isn't to have the best answer in the room — it's to make sure the team consistently produces good answers without me. I optimize for the system that produces outcomes, not for any single outcome."</p>
+    </div>
+
+    <h2 id="mindset">The trade-off mindset</h2>
+    <p>Senior technical leaders almost never say "the best way is X." They say "it depends on what we're optimizing for." Every meaningful decision trades one good thing for another. Naming the trade-off out loud is the clearest signal of seniority you can give.</p>
+
+    <ul class="clean">
+      <li><strong>Speed vs. quality</strong> — ship fast and learn, or build to last? Usually answered by reversibility (below).</li>
+      <li><strong>Build vs. buy</strong> — is this our core differentiator, or undifferentiated heavy lifting we should buy/rent?</li>
+      <li><strong>Consistency vs. availability</strong> — the CAP trade-off that drives most data architecture decisions.</li>
+      <li><strong>Cost vs. performance vs. reliability</strong> — you can usually have two cheaply; the third costs money.</li>
+      <li><strong>Centralize vs. decentralize</strong> — shared platform efficiency vs. team autonomy and speed.</li>
+    </ul>
+
+    <div class="callout">
+      <span class="label">Reversible vs. one-way-door decisions</span>
+      <p>Borrowed from Amazon. <strong>Reversible (two-way door)</strong> decisions are cheap to undo — make them fast, delegate them, don't over-analyze. <strong>One-way-door</strong> decisions are expensive or impossible to reverse — slow down, gather data, involve more people. Knowing which is which is a director-level skill. Most decisions are reversible; treat them that way to move fast.</p>
+    </div>
+
+    <div class="say">
+      <span class="label">Say it like a director</span>
+      <p>"This is a reversible decision, so I'd rather we pick a reasonable option this week and learn from real usage than spend a month seeking the perfect one. If it were a one-way door — say, a data model our partners integrate against — I'd slow down and invest in getting it right."</p>
+    </div>
+
+    <h2 id="concepts">Core technical concepts you must speak fluently</h2>
+    <p>You won't be asked to implement these, but you must explain them crisply and know when each matters. Treat the cards below as flashcards — read the plain-language version until you can teach it.</p>
+
+    <div class="grid cols-2">
+      <div class="card">
+        <h3>Latency vs. throughput</h3>
+        <p><strong>Latency</strong> = how long one request takes. <strong>Throughput</strong> = how many requests per second you can handle. Optimizing one can hurt the other (batching boosts throughput but adds latency). Always ask "which one matters for this user experience?"</p>
+      </div>
+      <div class="card">
+        <h3>Concurrency vs. parallelism</h3>
+        <p><strong>Concurrency</strong> = dealing with many things at once (structure). <strong>Parallelism</strong> = doing many things at once (execution, needs multiple cores). A single-core machine can be concurrent but not parallel.</p>
+      </div>
+      <div class="card">
+        <h3>CAP theorem</h3>
+        <p>In a distributed system facing a network <strong>P</strong>artition, you must choose between <strong>C</strong>onsistency (every read sees the latest write) and <strong>A</strong>vailability (every request gets a response). You can't fully have both during a partition. Most modern systems pick AP with "eventual consistency."</p>
+      </div>
+      <div class="card">
+        <h3>ACID vs. BASE</h3>
+        <p><strong>ACID</strong> (Atomic, Consistent, Isolated, Durable) — strong guarantees, classic relational DBs, money &amp; orders. <strong>BASE</strong> (Basically Available, Soft state, Eventually consistent) — relaxed guarantees for scale &amp; availability, common in NoSQL.</p>
+      </div>
+      <div class="card">
+        <h3>Synchronous vs. asynchronous</h3>
+        <p><strong>Sync</strong> = caller waits for the result (simple, tightly coupled). <strong>Async</strong> = fire and continue, result comes later via callback/queue/event (resilient, scalable, harder to reason about). Async + queues absorb spikes and decouple teams.</p>
+      </div>
+      <div class="card">
+        <h3>Statefulness</h3>
+        <p><strong>Stateless</strong> services hold no client data between requests — easy to scale horizontally and replace. Push state into databases, caches, and object stores. "Make the compute stateless" is a reflex you should have.</p>
+      </div>
+      <div class="card">
+        <h3>Coupling &amp; cohesion</h3>
+        <p>Aim for <strong>low coupling</strong> (components depend on each other minimally) and <strong>high cohesion</strong> (a component does one thing well). This is the heart of good architecture <em>and</em> good org design — teams should map to loosely coupled systems (Conway's Law).</p>
+      </div>
+      <div class="card">
+        <h3>Idempotency</h3>
+        <p>An operation is <strong>idempotent</strong> if doing it twice has the same effect as doing it once. Critical for retries, payments, and at-least-once message delivery. "Make the API idempotent with a request key" is a senior reflex.</p>
+      </div>
+    </div>
+
+    <div class="say">
+      <span class="label">Say it like a director</span>
+      <p>"I'd push the team toward stateless services behind a load balancer, with state in a managed datastore. It keeps scaling boring — we add instances — and it keeps failure boring, because any instance can die without taking a user's session with it."</p>
+    </div>
+
+    <h2 id="metrics">Metrics literacy — speak in numbers</h2>
+    <p>Directors are expected to manage by evidence. You don't need to compute them, but you must know what they mean and reach for them naturally.</p>
+
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Term</th><th>What it means</th><th>When you cite it</th></tr></thead>
+        <tbody>
+          <tr><td><strong>SLI</strong></td><td>Service Level <em>Indicator</em> — the actual measured number (e.g. 99.92% of requests succeeded).</td><td>"What does the data say?"</td></tr>
+          <tr><td><strong>SLO</strong></td><td>Service Level <em>Objective</em> — the target you commit to internally (e.g. 99.9%).</td><td>Setting reliability goals &amp; priorities.</td></tr>
+          <tr><td><strong>SLA</strong></td><td>Service Level <em>Agreement</em> — the contractual promise to customers, with penalties.</td><td>Customer/legal commitments.</td></tr>
+          <tr><td><strong>Error budget</strong></td><td>The allowed amount of unreliability (100% − SLO). When it's spent, you stop shipping features and fix reliability.</td><td>Balancing velocity vs. stability.</td></tr>
+          <tr><td><strong>p50 / p95 / p99</strong></td><td>Percentile latencies. p99 = the slowest 1% of requests. Averages lie; percentiles tell the truth about tail experience.</td><td>Performance discussions.</td></tr>
+          <tr><td><strong>DORA metrics</strong></td><td>Deployment frequency, lead time for changes, change failure rate, time to restore. The industry-standard delivery health metrics.</td><td>Talking about team/delivery performance.</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="callout warn">
+      <span class="label">Trap to avoid</span>
+      <p>Don't quote "99.999% uptime" reflexively. Each extra nine costs roughly 10× more. A director asks "what reliability does this use case actually need, and what does the next nine cost us?" Matching reliability to business need is more impressive than chasing five nines everywhere.</p>
+    </div>
+
+    <h2 id="questions">Practice questions</h2>
+    <div class="search"><input type="text" data-search placeholder="Search these questions…" /></div>
+    <div class="btn-row" style="margin-top:0">
+      <button class="btn" data-open-all>Expand all</button>
+      <button class="btn" data-close-all>Collapse all</button>
+    </div>
+    <p class="no-results">No questions match your search.</p>
+
+    <div data-search-group>
+      <details class="qa" data-searchable>
+        <summary>As a director, how do you decide what to work on yourself vs. delegate?<span class="qa-badge core">Core</span></summary>
+        <div class="body">
+          <p>I delegate by default and reserve my own time for the few things only I can do: setting direction, unblocking across orgs, hiring, and the highest-stakes one-way-door decisions. My test is "does this build the team's capability or just my own throughput?" If doing it myself makes me a bottleneck or robs someone of growth, I delegate it with clear context and let them own the outcome — including the right to do it differently than I would.</p>
+          <div class="say"><span class="label">The pattern</span><p>State your default (delegate), name your exceptions (direction, hiring, cross-org unblocking, one-way doors), and give the test you apply.</p></div>
+        </div>
+      </details>
+
+      <details class="qa" data-searchable>
+        <summary>What's the difference between latency and throughput, and why does it matter to a leader?<span class="qa-badge core">Core</span></summary>
+        <div class="body">
+          <p>Latency is how long a single request takes; throughput is how many we can serve per second. They matter to me because they map to different user pains and different costs. A checkout flow lives and dies on p99 latency, so I'd invest there. A nightly batch job only cares about throughput, so I'd happily add latency to process more per run. The leadership move is making sure the team optimizes the dimension the <em>business</em> cares about, not the one that's most fun to optimize.</p>
+        </div>
+      </details>
+
+      <details class="qa" data-searchable>
+        <summary>Explain CAP theorem to a non-technical executive.<span class="qa-badge deep">Deep</span></summary>
+        <div class="body">
+          <p>"Imagine our data lives in two data centers. Normally they stay in sync. But if the link between them breaks, we face a choice for that moment: either refuse some requests so nobody sees stale data — that's choosing consistency — or keep serving everyone, accepting that two users might briefly see slightly different data — that's choosing availability. We can't perfectly have both while the link is down. For a bank balance we'd lean toward consistency; for a social feed, availability. We make that choice deliberately, per use case."</p>
+          <div class="callout tip"><span class="label">Why this lands</span><p>It shows you can translate a technical theorem into a business trade-off an exec can decide on — the core director skill.</p></div>
+        </div>
+      </details>
+
+      <details class="qa" data-searchable>
+        <summary>A team wants five-nines (99.999%) availability for an internal admin tool. How do you respond?<span class="qa-badge trap">Trap</span></summary>
+        <div class="body">
+          <p>I'd push back gently with a question, not a no: "What does an outage of this tool actually cost us, and who feels it?" Five-nines means roughly five minutes of downtime per year and typically multi-region redundancy, on-call rotations, and a large operational tax. For an internal admin tool used in business hours, three-nines is almost certainly the right target, freeing that engineering investment for customer-facing systems. The lesson I'd reinforce with the team: reliability is a cost we choose to pay where it earns its keep, not a vanity number.</p>
+        </div>
+      </details>
+
+      <details class="qa" data-searchable>
+        <summary>When would you choose eventual consistency over strong consistency?<span class="qa-badge deep">Deep</span></summary>
+        <div class="body">
+          <p>When availability and scale matter more than every reader seeing the absolute latest value instantly — and when the business can tolerate a short convergence window. Think likes, view counts, feeds, product catalogs. I'd keep strong consistency where correctness is non-negotiable: money movement, inventory at the point of sale, anything where a stale read causes a wrong decision. The framing I'd give the team is: "What's the cost of someone reading data that's two seconds old?" If it's near zero, eventual consistency buys us a lot of resilience cheaply.</p>
+        </div>
+      </details>
+
+      <details class="qa" data-searchable>
+        <summary>How do you make decisions when you don't have enough information?<span class="qa-badge core">Core</span></summary>
+        <div class="body">
+          <p>First I classify the decision: is it reversible or a one-way door? If it's reversible, I'd rather make a good-enough call quickly and learn from reality than wait for certainty that may never come — speed is itself an advantage. If it's a one-way door, I invest in reducing uncertainty: time-boxed spikes, prototypes, talking to customers, or a small reversible experiment to de-risk the irreversible part. I also make my assumptions explicit so we can revisit the decision when they change.</p>
+        </div>
+      </details>
+    </div>
+
+    <div class="pagenav">
+      <a class="card" href="index.html"><span class="tag">← Back</span><h3>Home</h3></a>
+      <a class="card" href="system-design.html"><span class="tag">Next pillar →</span><h3>System Design</h3></a>
+    </div>
+
+  </main>
+</div>
+</div>
+
+<footer class="site">
+  <div class="wrap"><span>Director's Edge — Fundamentals</span><span>Read for the pattern, not the answer.</span></div>
+</footer>
+<script src="assets/js/main.js"></script>
+</body>
+</html>

@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Security — Director's Edge</title>
+<meta name="description" content="Director-level security: secrets and API key management, authentication vs authorization, common pitfalls, and the talking points that show you treat security as a default." />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="assets/css/styles.css" />
+</head>
+<body>
+
+<header class="site">
+  <nav class="nav">
+    <a class="brand" href="index.html"><span class="logo">DE</span><span>Director's Edge<small>Engineering Leadership Prep</small></span></a>
+    <button class="menu-btn" aria-label="Menu">☰</button>
+    <div class="nav-links">
+      <a href="fundamentals.html">Fundamentals</a>
+      <a href="system-design.html">System Design</a>
+      <a href="tech-radar.html">Tech Radar</a>
+      <a href="leadership.html">Leadership &amp; Delivery</a>
+      <a href="security.html">Security</a>
+      <a href="behavioral.html">Behavioral</a>
+      <button class="theme-toggle" aria-label="Toggle theme">☀</button>
+    </div>
+  </nav>
+</header>
+
+<section class="hero">
+  <div class="wrap">
+    <span class="eyebrow">Pillar 5</span>
+    <h1>Security</h1>
+    <p class="lead">You don't need to be a security engineer, but a director who treats security as an afterthought is a liability. The signal interviewers look for: you make the secure path the default and you can reason about risk in plain language.</p>
+  </div>
+</section>
+
+<div class="wrap section">
+<div class="page-layout">
+
+  <aside class="toc">
+    <strong>On this page</strong>
+    <a href="#mindset">The security mindset</a>
+    <a href="#authn-authz">Authentication vs authorization</a>
+    <a href="#tokens">Sessions, tokens &amp; OAuth</a>
+    <a href="#secrets">Secrets &amp; API keys</a>
+    <a href="#practices">Everyday practices</a>
+    <a href="#questions">Practice questions</a>
+  </aside>
+
+  <main>
+
+    <h2 id="mindset">The security mindset</h2>
+    <p>Three principles do most of the heavy lifting. Reach for them by name and you sound like a leader who's lived through an incident or two.</p>
+    <div class="grid cols-3">
+      <div class="card"><h3>Least privilege</h3><p>Every user, service, and key gets the minimum access needed — nothing more. Limits the blast radius when (not if) something is compromised.</p></div>
+      <div class="card"><h3>Defense in depth</h3><p>No single control is trusted alone. Layer them — network, app, data, identity — so one failure doesn't mean total compromise.</p></div>
+      <div class="card"><h3>Secure by default / shift left</h3><p>Make the safe path the easy path, and catch issues early in the lifecycle (in CI, in design) rather than after release. Security is everyone's job, enabled by the platform.</p></div>
+    </div>
+
+    <div class="callout">
+      <span class="label">Zero Trust in one line</span>
+      <p>"Never trust, always verify." Don't assume anything inside the network is safe — authenticate and authorize every request regardless of where it came from. The modern replacement for the old "hard shell, soft center" perimeter model.</p>
+    </div>
+
+    <!-- ===================== AUTHN AUTHZ ===================== -->
+    <h2 id="authn-authz">Authentication vs. authorization</h2>
+    <p>The single most common security question, and an easy one to fumble under pressure. Keep them crisp.</p>
+
+    <figure class="diagram">
+      <svg viewBox="0 0 720 200" role="img" aria-label="Authentication is who you are, authorization is what you can do">
+        <rect class="svg-accent" x="30" y="45" width="300" height="110" rx="12"/>
+        <text class="svg-txt" x="180" y="80" text-anchor="middle">Authentication (AuthN)</text>
+        <text class="svg-sub" x="180" y="108" text-anchor="middle">"Who are you?"</text>
+        <text class="svg-sub" x="180" y="128" text-anchor="middle">Prove identity — password, MFA, SSO</text>
+
+        <rect class="svg-accent2" x="390" y="45" width="300" height="110" rx="12"/>
+        <text class="svg-txt" x="540" y="80" text-anchor="middle">Authorization (AuthZ)</text>
+        <text class="svg-sub" x="540" y="108" text-anchor="middle">"What are you allowed to do?"</text>
+        <text class="svg-sub" x="540" y="128" text-anchor="middle">Permissions — roles, policies, scopes</text>
+
+        <line class="svg-line-acc" x1="330" y1="100" x2="388" y2="100" marker-end="url(#arS)"/>
+        <text class="svg-sub" x="359" y="40" text-anchor="middle">then</text>
+        <defs><marker id="arS" markerWidth="9" markerHeight="9" refX="7" refY="4.5" orient="auto"><path d="M0,0 L9,4.5 L0,9 z" fill="var(--accent)"/></marker></defs>
+      </svg>
+      <figcaption>Authentication always comes first (verify identity), then authorization (check permissions). AuthN = who; AuthZ = what.</figcaption>
+    </figure>
+
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th></th><th>Authentication</th><th>Authorization</th></tr></thead>
+        <tbody>
+          <tr><td>Question</td><td>Who are you?</td><td>What can you do?</td></tr>
+          <tr><td>Happens</td><td>First</td><td>After authentication</td></tr>
+          <tr><td>Examples</td><td>Password, MFA, biometrics, SSO</td><td>RBAC roles, ABAC policies, OAuth scopes</td></tr>
+          <tr><td>Visible to user?</td><td>Yes (you log in)</td><td>Usually invisible (access just works or is denied)</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="grid cols-2">
+      <div class="card"><h3>RBAC — Role-Based Access Control</h3><p>Permissions attach to <em>roles</em> (admin, editor, viewer); users get roles. Simple, auditable, the common default. Can sprawl into "role explosion" at scale.</p></div>
+      <div class="card"><h3>ABAC — Attribute-Based Access Control</h3><p>Access decided by <em>attributes</em> (department, region, time, resource owner). More flexible and fine-grained than RBAC, but more complex to reason about and audit.</p></div>
+    </div>
+
+    <div class="say">
+      <span class="label">Say it like a director</span>
+      <p>"Authentication is verifying who you are; authorization is deciding what you're allowed to do — identity first, permissions second. I'd standardize authentication on SSO with MFA so we're not managing passwords, and start authorization with RBAC for clarity and auditability, moving to attribute-based rules only where the business genuinely needs that granularity. The principle underneath both is least privilege."</p>
+    </div>
+
+    <!-- ===================== TOKENS ===================== -->
+    <h2 id="tokens">Sessions, tokens &amp; OAuth</h2>
+    <p>Know the vocabulary well enough to govern decisions, even if the team implements the details.</p>
+    <ul class="clean">
+      <li><strong>Session-based auth:</strong> server stores a session, client holds a session ID cookie. Simple, easy to revoke, but stateful — harder to scale horizontally.</li>
+      <li><strong>Token-based (JWT):</strong> a signed token carries identity/claims; the server can verify it without storing state. Scales well and is stateless, but revoking a token before it expires is harder — keep lifetimes short and pair with refresh tokens.</li>
+      <li><strong>OAuth 2.0:</strong> a delegation framework — "let app A act on my behalf at service B" without sharing your password. The basis of "Sign in with Google" and most third-party API access.</li>
+      <li><strong>OpenID Connect (OIDC):</strong> an identity layer on top of OAuth 2.0 — OAuth handles authorization/delegation, OIDC adds standardized authentication (who the user is).</li>
+      <li><strong>MFA:</strong> multiple factors — something you know, have, or are. The single highest-leverage control against account takeover; mandate it for anything sensitive.</li>
+    </ul>
+
+    <div class="callout warn">
+      <span class="label">Common confusion to get right</span>
+      <p>OAuth is fundamentally about <em>authorization/delegation</em>, not authentication — that's what OIDC adds on top. Mixing these up is a classic tell that someone has used the libraries but not understood them. As a director, you don't implement it, but you should catch the team conflating the two.</p>
+    </div>
+
+    <!-- ===================== SECRETS ===================== -->
+    <h2 id="secrets">Secrets &amp; API key management</h2>
+    <p>Secrets are credentials your systems use: API keys, database passwords, private keys, tokens. Mishandled secrets are one of the most common and most damaging breaches — and one a director is expected to have firm opinions about.</p>
+
+    <div class="callout warn">
+      <span class="label">The cardinal sin</span>
+      <p>Never hard-code secrets in source code or commit them to Git. Once a secret hits the repo history it's effectively public forever, even if you delete it later — it must be rotated. This is the number-one thing to have a zero-tolerance policy on.</p>
+    </div>
+
+    <div class="grid cols-2">
+      <div class="card"><h3>Where secrets should live</h3><p>In a dedicated secrets manager (HashiCorp Vault, AWS Secrets Manager, Azure Key Vault, etc.) or injected as environment variables at runtime — never in code, config files in the repo, or chat messages.</p></div>
+      <div class="card"><h3>Rotation</h3><p>Secrets should expire and rotate automatically on a schedule, and immediately if exposure is suspected. Short-lived, frequently rotated credentials limit the value of a leaked one.</p></div>
+      <div class="card"><h3>Least-privilege keys</h3><p>Scope each API key to only what it needs — read-only if it only reads, one service per key — so a single leaked key can't do much. Avoid one all-powerful "god key."</p></div>
+      <div class="card"><h3>Detection &amp; encryption</h3><p>Run secret-scanning in CI to catch accidental commits, encrypt secrets at rest and in transit (TLS everywhere), and audit who accessed what. Assume leaks will happen and limit their impact.</p></div>
+    </div>
+
+    <div class="say">
+      <span class="label">Say it like a director</span>
+      <p>"My baseline policy is: no secret ever lives in source control. We use a managed secrets store, inject credentials at runtime, scope every key to least privilege, and rotate automatically — with immediate rotation if anything's suspected leaked. I also wire secret-scanning into CI so a mistake is caught before merge, not after a breach. The goal is that the secure way is also the most convenient way, so engineers don't route around it."</p>
+    </div>
+
+    <!-- ===================== PRACTICES ===================== -->
+    <h2 id="practices">Everyday practices a director champions</h2>
+    <ul class="clean">
+      <li><strong>Encrypt in transit and at rest</strong> — TLS everywhere, encrypted storage by default.</li>
+      <li><strong>Validate and sanitize all input</strong> — to prevent injection (SQL injection, XSS); use parameterized queries.</li>
+      <li><strong>Patch and manage dependencies</strong> — most breaches exploit known, unpatched vulnerabilities; automate dependency scanning.</li>
+      <li><strong>Audit logging</strong> — record who did what, so you can investigate and prove compliance.</li>
+      <li><strong>Threat modeling</strong> — for significant features, ask "how would an attacker abuse this?" during design.</li>
+      <li><strong>Incident response plan</strong> — know in advance who decides, who communicates, and how you contain — rehearsed, not improvised.</li>
+      <li><strong>OWASP Top 10</strong> — the canonical list of the most common web vulnerabilities; a useful shared reference for the team.</li>
+    </ul>
+
+    <!-- ===================== QUESTIONS ===================== -->
+    <h2 id="questions">Practice questions</h2>
+    <div class="search"><input type="text" data-search placeholder="Search these questions…" /></div>
+    <div class="btn-row" style="margin-top:0">
+      <button class="btn" data-open-all>Expand all</button>
+      <button class="btn" data-close-all>Collapse all</button>
+    </div>
+    <p class="no-results">No questions match your search.</p>
+
+    <div data-search-group>
+      <details class="qa" data-searchable>
+        <summary>What's the difference between authentication and authorization?<span class="qa-badge core">Core</span></summary>
+        <div class="body">
+          <p>Authentication answers "who are you?" — proving identity through something like a password, MFA, or SSO. Authorization answers "what are you allowed to do?" — checking permissions once identity is established. Authentication always comes first. A simple analogy: authentication is showing your ID to get into the building; authorization is whether your badge opens a particular door. Underpinning both is least privilege — grant the minimum access required.</p>
+        </div>
+      </details>
+
+      <details class="qa" data-searchable>
+        <summary>How does your team manage secrets and API keys?<span class="qa-badge core">Core</span></summary>
+        <div class="body">
+          <p>The non-negotiable is that secrets never live in source control — once a key is in Git history it's compromised and must be rotated. We keep secrets in a managed store like Vault or a cloud secrets manager, inject them at runtime rather than baking them into images, scope every key to least privilege, and rotate on a schedule plus immediately on any suspected exposure. I also put secret-scanning in CI so an accidental commit is blocked before merge. The principle is to make the secure path the path of least resistance so people don't work around it.</p>
+        </div>
+      </details>
+
+      <details class="qa" data-searchable>
+        <summary>A developer accidentally committed an API key to a public repo. What now?<span class="qa-badge trap">Trap</span></summary>
+        <div class="body">
+          <p>Treat the key as compromised the moment it's pushed — deleting the commit doesn't help, because it's in history and likely already scraped. So: rotate/revoke the key immediately, check logs for any unauthorized use, and assess blast radius based on what that key could access. Then the systemic fix: add secret-scanning to CI and pre-commit hooks so it can't happen again, and run a blameless review — the goal is fixing the system that allowed it, not punishing the person, or people will hide the next mistake. Calm, fast containment plus a process fix is the director's signature here.</p>
+        </div>
+      </details>
+
+      <details class="qa" data-searchable>
+        <summary>Is OAuth authentication or authorization?<span class="qa-badge deep">Deep</span></summary>
+        <div class="body">
+          <p>OAuth 2.0 is fundamentally an authorization/delegation framework — it lets one application act on a user's behalf at another service without sharing the password, via scoped access tokens. It is <em>not</em> an authentication protocol by itself. The authentication layer is OpenID Connect (OIDC), which sits on top of OAuth and standardizes proving who the user is. People commonly conflate them because "Sign in with Google" uses both. As a leader I don't implement the flows, but I do expect the team to use OIDC for identity and OAuth for delegated access, and to know the difference.</p>
+        </div>
+      </details>
+
+      <details class="qa" data-searchable>
+        <summary>How do you build security into the development process without slowing teams down?<span class="qa-badge deep">Deep</span></summary>
+        <div class="body">
+          <p>By making security a paved road rather than a gate. I shift left — automated checks in CI for dependencies, secrets, and common vulnerabilities — so issues surface in minutes, not in a review weeks later. I give teams secure defaults and reusable components so the easy path is the safe one, threat-model the high-risk features at design time, and reserve human security review for genuinely high-stakes changes. The mindset is guardrails, not gates: security enables the team to move fast safely instead of standing between them and production.</p>
+        </div>
+      </details>
+    </div>
+
+    <div class="pagenav">
+      <a class="card" href="leadership.html"><span class="tag">← Previous</span><h3>Leadership &amp; Delivery</h3></a>
+      <a class="card" href="behavioral.html"><span class="tag">Next pillar →</span><h3>Behavioral</h3></a>
+    </div>
+
+  </main>
+</div>
+</div>
+
+<footer class="site">
+  <div class="wrap"><span>Director's Edge — Security</span><span>Make the secure path the default path.</span></div>
+</footer>
+<script src="assets/js/main.js"></script>
+</body>
+</html>
