@@ -54,6 +54,7 @@
       </svg>
       <figcaption>Authorization is the instant &ldquo;yes/no&rdquo;; the actual money movement (clearing &amp; settlement) happens in batches a day or two later. Knowing these are separate is fundamental.</figcaption>
     </figure>
+    <p class="tts-note">Here is what that diagram shows, in order. The card and the money flow along a chain: from the cardholder, to the merchant &mdash; that is your app; to the gateway or payment service provider, such as Stripe or Adyen; to the acquirer, which is the merchant&#8217;s bank; to the card network, such as Visa or Mastercard; and finally to the issuer, the cardholder&#8217;s bank. Two distinct things happen across that chain. First, authorization: in about a second, the issuer confirms the card is valid and the funds are available, and approves or declines. Then, a day or two later, clearing and settlement happen in batches, when the money actually moves from the issuer, through the acquirer, to the merchant, minus fees.</p>
 
     <h2 id="tokenisation">Tokenisation in practice &mdash; a worked example</h2>
     <p>This is the question every payments engineer must be able to answer concretely. Let&#8217;s walk a real card from the customer&#8217;s browser all the way to your database and UI.</p>
@@ -66,6 +67,7 @@
         <span class="k">Network token</span><span class="v">4895 3700 0000 1234  (looks card-like, issued by Visa/MC token service)</span>
       </div>
       <p style="margin:6px 0 0">(4111&hellip; is the well-known Visa <em>test</em> number, not a real card.) A PSP token is opaque &mdash; useless to anyone but your PSP. A network token is PAN-shaped but is a stand-in that the networks can map to the real card.</p>
+      <p class="tts-note">To picture those three: a real card number, called the PAN, is sixteen digits in four groups of four &mdash; the example here is Visa&#8217;s public test number, four one one one, repeated. The card&#8217;s expiry and three-digit CVV are shown too, and the CVV is never stored by anyone. A PSP token looks nothing like a card; it is an opaque string, for example the letters p m, an underscore, then a long run of random characters. A network token is card-shaped &mdash; also sixteen digits &mdash; but it is a stand-in number that only the card networks can map back to the real card.</p>
     </div>
 
     <h3>Who tokenises &mdash; and how you call them</h3>
@@ -128,6 +130,7 @@ fingerprint  : Xt5eQ9...     <span class="c">-- PSP-supplied, to detect the same
 |  (only ever see tokens)     |       |  firewalled, minimal access, own   |
 +-----------------------------+       |  logging, separately PCI-audited   |
                                        +------------------------------------+</pre>
+    <p class="tts-note">That diagram contrasts two zones. On the left, outside PCI scope, sits your web app, your APIs, most microservices, and your database &mdash; they only ever see tokens. On the right, inside PCI scope and network-segmented, sits a small card-capture proxy or token vault, plus a hardware security module, which handle the real card number only. The right-hand zone is firewalled, has minimal access and its own logging, and is audited separately. Only tokens cross from the left zone to the right.</p>
     <p>Most teams go further and have <strong>no CDE at all</strong>: by using the PSP&#8217;s hosted fields + vault, card data never touches any of your systems, so you qualify for the lightest <strong>SAQ A</strong>. You only stand up a CDE if you genuinely must hold the PAN &mdash; and then you make it as small as possible.</p>
 
     <h3>What can (and cannot) go in logs</h3>
@@ -141,6 +144,7 @@ fingerprint  : Xt5eQ9...     <span class="c">-- PSP-supplied, to detect the same
 INFO payment ok txn=pi_3Qk... card=pm_1Qk7... brand=visa last4=1111 amt=4999 auth=A12345
 <span class="c">// BAD &mdash; this is a PCI violation and a breach waiting to happen</span>
 INFO charge pan=4111111111111111 cvv=123 exp=12/27   <span class="c">&lt;-- NEVER</span></pre>
+    <p class="tts-note">In that code: the good log line records only safe fields &mdash; the transaction id, the token, the brand, the last four digits, the amount, and the authorization code. The bad log line writes the full card number, the CVV, and the expiry in plain text. That second line is a PCI violation and exactly the kind of leak this whole approach exists to prevent.</p>
     <p>Practically you enforce this with logging filters/redaction (regex that masks anything PAN-shaped), code review, and scanning &mdash; because the most common card-data leak isn&#8217;t a hacker, it&#8217;s a developer logging the request body.</p>
 
         <div class="example" data-ex-added><span class="label">&#128205; Real example &mdash; an idempotency key</span>
