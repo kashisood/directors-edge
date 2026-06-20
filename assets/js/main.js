@@ -153,6 +153,7 @@
       '<button class="icon-btn menu-btn" aria-label="Menu">&#9776;</button>' + crumb +
       '<span class="spacer"></span>' +
       '<span class="read-time"></span>' +
+      '<button class="listen-btn" aria-label="Listen to this page" title="Listen to this page"><span class="li-ico">&#9654;</span><span class="li-tx">Listen</span></button>' +
       '<button class="icon-btn size-btn" aria-label="Text size">A</button>' +
       '<button class="icon-btn theme-toggle" aria-label="Toggle theme">&#9749;</button>';
 
@@ -276,7 +277,151 @@
     if (c) c.addEventListener("click", function () { document.querySelectorAll("details.qa").forEach(function (d) { d.open = false; }); });
   }
 
+  /* ---- Listen to this page (Web Speech API text-to-speech) ---- */
+  function wireListen() {
+    var btn = document.querySelector(".listen-btn");
+    if (!btn) return;
+    var synth = window.speechSynthesis;
+    if (!synth || typeof SpeechSynthesisUtterance === "undefined") { btn.style.display = "none"; return; }
+
+    var RATES = [1, 1.25, 1.5, 0.85];
+    var chunks = [], idx = 0, playing = false, paused = false, rate = 1, gen = 0, keep = null, timer = null;
+
+    var bar = document.createElement("div");
+    bar.className = "tts-bar"; bar.hidden = true;
+    bar.innerHTML =
+      '<button class="tts-btn tts-play" aria-label="Play / pause">&#9208;</button>' +
+      '<button class="tts-btn tts-stop" aria-label="Stop">&#9632;</button>' +
+      '<div class="tts-meta"><span class="tts-title">Reading this page aloud</span>' +
+      '<span class="tts-pos">0 / 0</span></div>' +
+      '<button class="tts-btn tts-speed" aria-label="Reading speed">1&times;</button>';
+    document.body.appendChild(bar);
+    var playBtn = bar.querySelector(".tts-play"),
+        stopBtn = bar.querySelector(".tts-stop"),
+        speedBtn = bar.querySelector(".tts-speed"),
+        posEl = bar.querySelector(".tts-pos");
+
+    function pickVoice() {
+      var vs = synth.getVoices() || [];
+      return vs.filter(function (v) { return /^en(-|_)/i.test(v.lang); })[0] || vs[0] || null;
+    }
+    function blockText(el) {
+      if (el.tagName === "SUMMARY") {
+        return Array.prototype.filter.call(el.childNodes, function (n) {
+          return !(n.nodeType === 1 && n.classList && n.classList.contains("qa-badge"));
+        }).map(function (n) { return n.textContent || ""; }).join(" ");
+      }
+      return el.textContent || "";
+    }
+    function collect() {
+      var c = document.querySelector(".content"); if (!c) return [];
+      var nodes = Array.prototype.slice.call(c.querySelectorAll("h1,h2,h3,h4,p,li,figcaption,summary"));
+      var out = [];
+      nodes.forEach(function (el) {
+        if (el.closest("pre") || el.closest(".diagram") || el.closest("svg") || el.closest(".toc")) return;
+        if (el.tagName === "LI" && el.querySelector("ul,ol,li")) return;
+        var t = blockText(el).replace(/\s+/g, " ").trim();
+        if (t.length < 2) return;
+        out.push({ el: el, text: t });
+      });
+      return out;
+    }
+    function chunk(blocks) {
+      var cs = [];
+      blocks.forEach(function (b) {
+        if (b.text.length <= 200) { cs.push(b); return; }
+        var parts = b.text.match(/[^.!?]+[.!?]+|\S[^.!?]*$/g) || [b.text], buf = "";
+        parts.forEach(function (s) {
+          if ((buf + s).length > 200) { if (buf.trim()) cs.push({ el: b.el, text: buf.trim() }); buf = s; }
+          else { buf += s; }
+        });
+        if (buf.trim()) cs.push({ el: b.el, text: buf.trim() });
+      });
+      return cs;
+    }
+    function clearHi() { var p = document.querySelector(".tts-reading"); if (p) p.classList.remove("tts-reading"); }
+    function highlight(el) {
+      clearHi(); if (!el) return;
+      el.classList.add("tts-reading");
+      var r = el.getBoundingClientRect();
+      if (r.top < 80 || r.bottom > window.innerHeight - 130) el.scrollIntoView({ behavior: "smooth", block: "center" });
+    }
+    function pos() { posEl.textContent = Math.min(idx + 1, chunks.length) + " / " + chunks.length; }
+    function paint() {
+      playBtn.innerHTML = (playing && !paused) ? "&#9208;" : "&#9654;";
+      btn.classList.toggle("on", playing);
+      btn.querySelector(".li-ico").innerHTML = playing ? "&#9632;" : "&#9654;";
+      btn.querySelector(".li-tx").textContent = playing ? "Stop" : "Listen";
+    }
+    function gapBefore() {
+      var cur = chunks[idx], prev = chunks[idx - 1];
+      if (!prev || prev.el === cur.el) return 90;             // same block (sentence split)
+      var tag = cur.el.tagName;
+      if (tag === "H2") return 850;                            // new major section
+      if (tag === "H1" || tag === "H3" || tag === "H4" || tag === "SUMMARY") return 500;
+      return 260;                                              // new paragraph / list item
+    }
+    function schedule() {
+      if (timer) { clearTimeout(timer); timer = null; }
+      if (idx >= chunks.length) { stop(); return; }
+      timer = setTimeout(speak, gapBefore());
+    }
+    function speak() {
+      if (!playing || paused) return;
+      if (idx >= chunks.length) { stop(); return; }
+      var ch = chunks[idx], myGen = gen;
+      var d = ch.el.closest ? ch.el.closest("details") : null;
+      if (d && !d.open) d.open = true;                         // open Q&A so its answer is read
+      highlight(ch.el); pos();
+      var u = new SpeechSynthesisUtterance(ch.text);
+      u.rate = rate; u.lang = "en-US";
+      var v = pickVoice(); if (v) u.voice = v;
+      u.onend = function () { if (myGen === gen && playing && !paused) { idx++; schedule(); } };
+      u.onerror = function (e) {
+        if (myGen !== gen || !playing || paused) return;
+        if (e && (e.error === "interrupted" || e.error === "canceled")) return;
+        idx++; schedule();
+      };
+      try { synth.speak(u); } catch (err) { idx++; schedule(); }
+    }
+    function start() {
+      gen++; synth.cancel();
+      chunks = chunk(collect());
+      if (!chunks.length) return;
+      idx = 0; playing = true; paused = false;
+      bar.hidden = false; paint(); speak();
+      if (!keep) keep = setInterval(function () { if (playing && !paused) { try { synth.resume(); } catch (e) {} } }, 10000);
+    }
+    function stop() {
+      gen++; playing = false; paused = false; synth.cancel(); clearHi();
+      if (timer) { clearTimeout(timer); timer = null; }
+      bar.hidden = true; paint();
+      if (keep) { clearInterval(keep); keep = null; }
+    }
+    function togglePause() {
+      if (!playing) return;
+      if (paused) {
+        paused = false;
+        if (synth.speaking || synth.pending) synth.resume(); else schedule();
+      } else {
+        paused = true;
+        if (timer) { clearTimeout(timer); timer = null; }
+        synth.pause();
+      }
+      paint();
+    }
+    btn.addEventListener("click", function () { if (playing) stop(); else start(); });
+    playBtn.addEventListener("click", togglePause);
+    stopBtn.addEventListener("click", stop);
+    speedBtn.addEventListener("click", function () {
+      rate = RATES[(RATES.indexOf(rate) + 1) % RATES.length];
+      speedBtn.innerHTML = rate + "&times;";
+      if (playing && !paused) { gen++; synth.cancel(); speak(); }
+    });
+    window.addEventListener("beforeunload", function () { try { synth.cancel(); } catch (e) {} });
+  }
+
   document.addEventListener("DOMContentLoaded", function () {
-    buildShell(); wireProgress(); wireScrollSpy(); wireLevels(); wireSearch(); wireBulkToggle();
+    buildShell(); wireProgress(); wireScrollSpy(); wireLevels(); wireSearch(); wireBulkToggle(); wireListen();
   });
 })();
