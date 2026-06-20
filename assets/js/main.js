@@ -303,7 +303,14 @@
 
     function pickVoice() {
       var vs = synth.getVoices() || [];
-      return vs.filter(function (v) { return /^en(-|_)/i.test(v.lang); })[0] || vs[0] || null;
+      if (!vs.length) return null;
+      var en = vs.filter(function (v) { return /^en(-|_)/i.test(v.lang); });
+      var pool = en.length ? en : vs;
+      // prefer the most natural-sounding voices the device exposes
+      var nat = pool.filter(function (v) { return /natural|neural|online|enhanced|premium|wavenet/i.test(v.name); });
+      var named = pool.filter(function (v) { return /aria|jenny|libby|sonia|emma|michelle|ava|samantha|google|siri/i.test(v.name); });
+      var nonNovelty = pool.filter(function (v) { return !/zarvox|bells|bad news|cellos|bubbles|trinoids|albert|jester|organ|whisper|wobble/i.test(v.name); });
+      return nat[0] || named[0] || nonNovelty[0] || pool[0];
     }
     function blockText(el) {
       if (el.tagName === "SUMMARY") {
@@ -315,10 +322,16 @@
     }
     function collect() {
       var c = document.querySelector(".content"); if (!c) return [];
-      var nodes = Array.prototype.slice.call(c.querySelectorAll("h1,h2,h3,h4,p,li,figcaption,summary"));
-      var out = [];
+      var nodes = Array.prototype.slice.call(c.querySelectorAll("h1,h2,h3,h4,p,li,figcaption,summary,.tts-note"));
+      var out = [], seen = [];
       nodes.forEach(function (el) {
-        if (el.closest("pre") || el.closest(".diagram") || el.closest("svg") || el.closest(".toc")) return;
+        if (seen.indexOf(el) !== -1) return; seen.push(el);
+        var isNote = el.classList && el.classList.contains("tts-note");
+        var isCap = el.tagName === "FIGCAPTION";
+        // skip raw code/diagrams/SVG/TOC — EXCEPT figcaptions and explicit listen-only notes,
+        // which exist precisely to narrate those visuals.
+        if (!isNote && !isCap && (el.closest("pre") || el.closest(".diagram") || el.closest("svg") || el.closest(".toc"))) return;
+        if (el.closest(".tts-skip")) return;
         if (el.tagName === "LI" && el.querySelector("ul,ol,li")) return;
         var t = blockText(el).replace(/\s+/g, " ").trim();
         if (t.length < 2) return;
