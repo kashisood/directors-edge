@@ -843,3 +843,58 @@ pre.code .c { color: var(--text-dim); }
 @media (min-width: 901px) {
   .scrim { display: none; }
 }
+
+/* ===========================================================
+   v18 — "Listen to this page" (text-to-speech) button + player
+   =========================================================== */
+.listen-btn {
+  display: inline-flex; align-items: center; gap: 7px; cursor: pointer; flex: 0 0 auto;
+  height: 40px; padding: 0 14px; border-radius: 11px; font: inherit;
+  font-weight: 700; font-size: .9rem; transition: all .15s;
+  border: 1px solid var(--border); background: var(--accent-soft); color: var(--accent);
+}
+.listen-btn:hover { border-color: var(--accent); transform: translateY(-1px); box-shadow: var(--shadow-soft); }
+.listen-btn .li-ico { font-size: .78rem; line-height: 1; }
+.listen-btn.on { background: var(--accent-grad); color: #fff; border-color: transparent; }
+
+.tts-bar {
+  position: fixed; left: 50%; bottom: 18px; transform: translateX(-50%); z-index: 130;
+  display: flex; align-items: center; gap: 12px;
+  padding: 10px 14px; border-radius: 999px; max-width: calc(100vw - 28px);
+  background: var(--bg-card); border: 1px solid var(--border); box-shadow: var(--shadow);
+}
+.tts-bar[hidden] { display: none; }
+.tts-btn {
+  width: 38px; height: 38px; flex: 0 0 auto; border-radius: 50%; cursor: pointer;
+  border: 1px solid var(--border); background: var(--bg-elev); color: var(--text);
+  font-size: .92rem; display: grid; place-items: center; transition: all .15s;
+}
+.tts-btn:hover { border-color: var(--accent); color: var(--accent); }
+.tts-play { background: var(--accent-grad); color: #fff; border: none; }
+.tts-play:hover { color: #fff; filter: brightness(1.07); }
+.tts-speed { width: auto; padding: 0 13px; border-radius: 999px; font-weight: 700; font-size: .82rem; }
+.tts-meta { display: flex; flex-direction: column; line-height: 1.15; min-width: 0; }
+.tts-title { font-size: .82rem; font-weight: 650; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tts-pos { font-size: .72rem; color: var(--text-dim); font-family: var(--mono); }
+
+/* the block currently being read aloud */
+.tts-reading { background: var(--accent-soft); border-radius: 6px; box-shadow: 0 0 0 6px var(--accent-soft); scroll-margin-top: 90px; }
+
+@media (max-width: 480px) {
+  .listen-btn .li-tx { display: none; }
+  .listen-btn { padding: 0 11px; }
+  .tts-title { display: none; }
+}
+
+/* ===========================================================
+   v19 — listen-only narration ("tts-note")
+   Invisible on screen; read aloud by the Listen feature and by
+   screen readers. Use to describe diagrams, code, and value
+   examples that would otherwise be skipped or sound garbled.
+   =========================================================== */
+.tts-note {
+  position: absolute !important; width: 1px; height: 1px;
+  padding: 0; margin: -1px; overflow: hidden;
+  clip: rect(0 0 0 0); clip-path: inset(50%);
+  white-space: nowrap; border: 0;
+}
