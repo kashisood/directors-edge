@@ -78,6 +78,7 @@ add("http://b.com")  &rarr; hashes to {2, 9, 14}   set those bits = 1
 
 check("http://a.com") &rarr; bits 2,7,11 all 1   &rarr; "probably seen"  (correct)
 check("http://c.com") &rarr; bit 5 is 0          &rarr; "definitely NEW" (correct, skip a lookup)</pre>
+      <p class="tts-note">The diagram shows a small array of bits, all starting at zero. Adding a URL runs it through three hash functions that flip three specific bits to one. To check a URL you look at its three bits: if any is still zero the URL is definitely new; if all three are one it has probably been seen. So it never misses a genuinely new URL, but can occasionally give a false positive.</p>
       <p><strong>What this teaches:</strong> a Bloom filter gives <em>no false negatives</em> (if it says &ldquo;new&rdquo;, it really is new) but allows rare <em>false positives</em> (it may say &ldquo;seen&rdquo; for a fresh URL because another URL set the same bits). That trade is perfect for a crawler: occasionally skipping a new URL is cheap, and in exchange you fit a &ldquo;seen set&rdquo; for billions of URLs in megabytes instead of terabytes. Tune <code>m</code> (bits) and <code>k</code> (hashes) to set the false-positive rate.</p>
     </div>
 

@@ -131,6 +131,7 @@
 { "sub": "usr_4821", "role": "admin", "iat": 1738316800, "exp": 1738320400 }
 
 <span class="c">// signature = HMAC-SHA256( base64url(header) + "." + base64url(payload), SECRET )</span></pre>
+      <p class="tts-note">The diagram shows the token split into its three dot-separated parts and decoded. The header says the algorithm is HS256. The payload is plain, readable JSON with claims such as the subject, the role, and an expiry timestamp. The third part is a signature the server recomputes using its secret. Because the first two parts are only encoded, not encrypted, anyone can read them &mdash; so you never put secrets inside a token.</p>
       <p><strong>What this teaches:</strong> anyone can read the header and payload (paste them into jwt.io), so <em>never put secrets in a JWT</em>. The <strong>signature</strong> is what matters &mdash; the server recomputes it with its secret to confirm nobody tampered with the claims. Always check <code>exp</code> (expiry), keep lifetimes short, and remember you can&#8217;t easily revoke a JWT before it expires (hence refresh tokens).</p>
     </div>
 
@@ -195,6 +196,7 @@
 4. app &rarr; POST /token   { code=AUTH_CODE, code_verifier=ORIGINAL_RANDOM }
       Google checks  SHA256(verifier) == code_challenge   &rarr;  issues tokens:
       { access_token, refresh_token, id_token (a JWT), expires_in: 3600 }</pre>
+      <p class="tts-note">The diagram shows the sign-in-with-Google flow. The app first invents a random verifier and sends only its hash, the challenge. The browser sends the user to Google to log in and consent; Google redirects back with a one-time code; the app then exchanges that code together with the original verifier for tokens. Google checks that the verifier's hash matches the challenge before issuing an access token, a refresh token, and an id token.</p>
       <p><strong>What this teaches:</strong> the password is only ever entered at Google &mdash; your app never sees it, it just receives a short-lived, scoped <code>access_token</code>. The one-time <code>code</code> travels through the browser redirect, but it&#8217;s useless to an attacker without the matching <code>code_verifier</code> that never left the app &mdash; that&#8217;s what PKCE protects against (an intercepted code). Always request the narrowest <code>scope</code>, keep access tokens short-lived, and store the <code>refresh_token</code> securely to get new ones without re-prompting.</p>
     </div>
 

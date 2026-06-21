@@ -56,6 +56,7 @@
    node-D @ 300&deg;
 
 add node-E @ 130&deg;  &rarr;  ONLY keys between 120&deg; and 130&deg; move (B&rarr;E). Everything else stays put.</pre>
+      <p class="tts-note">Picture that diagram as a clock face. Servers sit around the ring &mdash; node A near 25 degrees, B at 120, C at 210, D at 300 &mdash; and every key is placed on the same ring and handed to the next server clockwise. A key at 200 degrees goes to node C; a key near the top wraps around to node A. When you add a new node at 130 degrees, only the keys between 120 and 130 move to it &mdash; every other key stays exactly where it was.</p>
       <p><strong>What this teaches:</strong> adding or removing a node only re-maps the keys in <em>one arc</em> of the ring (~1/N of them), not all of them &mdash; so scaling doesn&#8217;t nuke the cache. In practice each physical node is placed at many points on the ring (&ldquo;virtual nodes&rdquo;) so load spreads evenly and one node leaving doesn&#8217;t dump its whole load on a single neighbour. This is exactly how Redis Cluster, DynamoDB, and Cassandra decide where data lives.</p>
     </div>
 

@@ -86,6 +86,7 @@ compare to stored docs (cosine similarity, 1.0 = identical meaning):
 
 note: keyword search would MISS "recover your account login" &mdash; no shared words,
       but the meaning is close, so the embedding ranks it #1.</pre>
+      <p class="tts-note">The diagram shows a question turned into a long list of numbers, a vector. Stored documents are compared to it by cosine similarity, scored from one for identical meaning down to zero. The phrase 'recover your account login' scores about zero-point-nine-two against 'reset my password' even though they share no words, while an unrelated line about the office holiday schedule scores near zero.</p>
       <p><strong>What this teaches:</strong> embeddings capture <em>meaning</em>, not keywords &mdash; &ldquo;reset password&rdquo; and &ldquo;recover account login&rdquo; share almost no words but sit close in vector space. A RAG pipeline embeds your documents once, stores the vectors in a vector DB (Pinecone, pgvector, FAISS), then at query time embeds the question and returns the nearest chunks to feed the LLM. The quality of retrieval &mdash; chunk size, the embedding model, and how many neighbours you pull &mdash; usually matters more to answer quality than the LLM choice itself.</p>
     </div>
 

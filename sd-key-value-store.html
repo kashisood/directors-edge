@@ -103,6 +103,7 @@ W = 2, R = 2   &rarr;  R + W = 4 &gt; 3   &rarr;  STRONG: any read overlaps the 
    read  "x":   ask node-B + node-C  &rarr; node-B has 5 (newest) &rarr; return 5  &#10003;
 
 W = 1, R = 1   &rarr;  R + W = 2 &lt; 3   &rarr;  FAST but stale reads possible (eventual consistency)</pre>
+      <p class="tts-note">The diagram shows three replicas of each key. With writes needing two acknowledgements and reads consulting two replicas, the set you read always overlaps the latest write, so you get fresh data &mdash; that is R plus W greater than N. Drop to one and one and reads become faster but can return stale data.</p>
       <p><strong>What this teaches:</strong> if <code>R + W &gt; N</code>, the set of nodes you read always overlaps the set you wrote, so you&#8217;re guaranteed to see the latest value &mdash; that&#8217;s tunable strong consistency. Lowering R or W makes reads/writes faster and keeps working when nodes are down, but you may read stale data. This single knob (used by DynamoDB and Cassandra) is how you trade consistency for availability and latency &mdash; the practical face of the CAP theorem.</p>
     </div>
 
@@ -126,6 +127,7 @@ MemTable fills up  &rarr;  flush to disk as an immutable SSTable (sorted file)
 read user:7  &rarr; check MemTable, then newest SSTable first &rarr; returns {plan:"pro"}
 crash before flush? &rarr; replay the WAL on restart, nothing lost.
 compaction runs in background &rarr; merges SSTables, drops shadowed/deleted keys.</pre>
+      <p class="tts-note">The diagram shows the write path. Each write is appended to a write-ahead log on disk, which makes it durable instantly, and is also added to a sorted table in memory. When that memory table fills up it is flushed to disk as an immutable sorted file. Reads check memory first, then the newest files, so the latest value wins; and if the system crashes before a flush, replaying the log recovers everything.</p>
       <p><strong>What this teaches:</strong> the <strong>WAL</strong> makes a write durable the instant it&#8217;s appended (sequential writes are cheap), and the <strong>LSM-tree</strong> turns random updates into fast in-memory writes plus periodic sorted flushes. Reads check newest-first, so the latest value wins; <strong>compaction</strong> later merges files and reclaims space. The trade vs a B-tree: blazing writes and great compression, but reads may touch several files (mitigated by Bloom filters per SSTable) and compaction costs background I/O.</p>
     </div>
 

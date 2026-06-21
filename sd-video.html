@@ -144,6 +144,7 @@
 
 cache-hit ratio 95%  &rarr;  only 5% of requests reach origin
   &rarr; origin bandwidth and cost drop ~20x; viewers get a nearby, fast copy</pre>
+      <p class="tts-note">The diagram shows a video split into small segments. The first viewer in a region misses the edge cache, so a segment is pulled once from the distant origin and stored nearby; every later viewer in that region gets it from the edge in a few milliseconds. At a ninety-five percent cache-hit rate, only about one request in twenty ever reaches the origin.</p>
       <p><strong>What this teaches:</strong> static, immutable segments are perfect for edge caching &mdash; popular content is served from a server milliseconds away while the origin handles only the long tail of misses. This is also how <strong>adaptive bitrate</strong> works: the player requests <code>720p</code> segments when bandwidth is good and silently switches to <code>360p</code> chunks when it drops, because each quality is just a different set of cached segment URLs. Measure success by cache-hit ratio and rebuffer rate, not raw throughput.</p>
     </div>
 

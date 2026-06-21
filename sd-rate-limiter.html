@@ -110,6 +110,7 @@
      |                                                           v
   CLOSED  &lt;&mdash;&mdash; 1 trial call succeeds &mdash;&mdash;  HALF-OPEN  &mdash;&mdash; trial fails &mdash;&mdash;&rarr; OPEN
                                           (let ONE request through to test)</pre>
+      <p class="tts-note">The diagram is a three-state machine. It starts CLOSED, letting calls through. After too many failures it trips to OPEN and fails instantly for a cooldown, shielding the struggling service. After the cooldown it moves to HALF-OPEN and lets a single trial call through: if that succeeds it returns to CLOSED, and if it fails it trips back to OPEN.</p>
       <p><strong>What this teaches:</strong> <strong>CLOSED</strong> = healthy, calls pass through. After enough failures it flips to <strong>OPEN</strong> and fails instantly &mdash; this protects the struggling service <em>and</em> keeps your own threads from piling up waiting on timeouts (the real cause of cascading outages). After a cooldown it goes <strong>HALF-OPEN</strong>, lets a single probe through, and either recovers (back to CLOSED) or re-trips. Libraries like Resilience4j and Envoy/Istio do exactly this; pair it with a timeout, a bounded retry with backoff, and a fallback.</p>
     </div>
 

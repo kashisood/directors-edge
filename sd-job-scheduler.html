@@ -53,6 +53,7 @@
 0 0 1 * *       &rarr;  midnight on the 1st of each month
 30 9 * * 1-5    &rarr;  09:30 Monday&ndash;Friday
 0 */6 * * *     &rarr;  every 6 hours (00:00, 06:00, 12:00, 18:00)</pre>
+      <p class="tts-note">The diagram lists cron expressions and their meaning. Five fields set the minute, hour, day of month, month, and day of week. So zero, two, star, star, one runs at 2 a.m. every Monday; star-slash-fifteen runs every fifteen minutes; and thirty, nine, on weekdays runs at 9:30 Monday to Friday.</p>
       <p><strong>What this teaches:</strong> <code>*</code> means &ldquo;every&rdquo;, <code>*/n</code> means &ldquo;every n&rdquo;, and ranges like <code>1-5</code> work. Two leadership gotchas: cron has <strong>no timezone</strong> of its own (decide UTC vs local, or daylight-saving will surprise you), and thousands of jobs set to <code>0 0 * * *</code> all fire at once &mdash; a thundering herd &mdash; so add a little random <strong>jitter</strong> to spread them out.</p>
     </div>
 

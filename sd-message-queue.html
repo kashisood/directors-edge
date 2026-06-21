@@ -102,6 +102,7 @@
 
 produce(key="user-42", value=...)  &rarr;  hash(key) % 3  &rarr;  partition 1
    &rarr; every event for user-42 lands in partition 1, so its order is preserved</pre>
+      <p class="tts-note">The diagram shows the topic 'orders' split into three partitions, each an append-only log numbered by offset. The consumer group remembers the last offset it processed in each partition, so after a restart it resumes from there. A message's key &mdash; for example user-42 &mdash; is hashed to choose its partition, which keeps all of that user's events in order.</p>
       <p><strong>What this teaches:</strong> the <strong>offset</strong> is just the position in an append-only log; the consumer group remembers the last offset it committed, so after a crash it resumes from there (and you can <em>rewind</em> the offset to replay history). The message <strong>key</strong> picks the partition via a hash, which is how you keep all events for one user/order strictly ordered &mdash; ordering is guaranteed <em>within</em> a partition, not across the whole topic. More partitions = more parallel consumers, but no global order.</p>
     </div>
 

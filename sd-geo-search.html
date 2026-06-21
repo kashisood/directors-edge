@@ -54,6 +54,7 @@
 9q8yy       &rarr;  ~2.4 km box   (central San Francisco)
 9q8yyk8     &rarr;  ~150 m box    (a couple of city blocks)
 9q8yyk8ytpxr&rarr;  ~1 m box      (basically a point)</pre>
+      <p class="tts-note">The diagram encodes San Francisco's coordinates as a geohash string. Each extra character shrinks the box: two characters cover hundreds of kilometres, five characters about two kilometres, seven characters roughly a city block. Nearby places share the same leading characters, so finding things near you becomes a simple prefix match.</p>
       <p><strong>What this teaches:</strong> nearby places share a geohash <em>prefix</em>, so &ldquo;find things near me&rdquo; becomes &ldquo;find rows whose geohash starts with <code>9q8yy</code>&rdquo; &mdash; a cheap index lookup instead of scanning every point. One catch: two close points can sit just across a cell boundary with different prefixes, so you always query the matching cell <em>plus its 8 neighbours</em>, then filter by exact distance. (Values are approximate &mdash; geohash precision is well defined per length.)</p>
     </div>
 

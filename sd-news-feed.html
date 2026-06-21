@@ -149,6 +149,7 @@ user_id % 4 == 2  &rarr;  [ shard 2 ]
 user_id % 4 == 3  &rarr;  [ shard 3 ]
    helps when: writes or total data are too big for one machine.
    gotcha: cross-shard queries (e.g. "feed from 100 friends on 4 shards") get hard &mdash; you fan out and merge.</pre>
+      <p class="tts-note">The diagram contrasts two setups. With read replicas, one primary database takes all the writes and streams copies to several read-only replicas that absorb the reads &mdash; ideal for a read-heavy feed, though replicas can lag slightly behind. With sharding, the data itself is split across independent primaries by user id &mdash; shard zero, one, two, three &mdash; which scales writes, but a query spanning shards, like merging a hundred friends' posts, must fan out and combine the results.</p>
       <p><strong>What this teaches:</strong> reach for <strong>read replicas</strong> first &mdash; they&#8217;re cheap and a feed is read-heavy, but they don&#8217;t add write capacity and they lag. Reach for <strong>sharding</strong> only when one primary can&#8217;t hold the writes or the data; it scales writes but makes anything spanning shards (joins, &ldquo;merge my friends&#8217; posts&rdquo;) your problem to solve in application code. Most large systems use both: shard the data, then replicate each shard.</p>
     </div>
 

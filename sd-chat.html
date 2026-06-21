@@ -135,6 +135,7 @@ client &rarr; GET /chat   Upgrade: websocket            (handshake, once)
 server &rarr; 101 Switching Protocols                    (now a duplex channel)
    ... server PUSHES {msg 1043} the instant it arrives, no new request
    ... client sends typing/read receipts down the SAME socket</pre>
+      <p class="tts-note">The diagram compares two approaches. With long-polling the client keeps asking and the server holds each request open until a message arrives, then the client immediately asks again &mdash; one request per message. With a WebSocket, a single handshake upgrades the connection once, then the server pushes messages instantly down a permanent two-way pipe, and the client sends typing and read receipts back over the same connection.</p>
       <p><strong>What this teaches:</strong> long-polling fakes real-time over plain HTTP &mdash; simple and firewall-friendly, but every message costs a full request and latency is bounded by the poll. A <strong>WebSocket</strong> does one <code>Upgrade</code> handshake (HTTP 101) and then keeps a single connection open both ways, so the server can <em>push</em> instantly and the client streams typing indicators back down the same pipe. The trade: you now hold millions of long-lived connections, so you need a connection/presence layer and a way to route a message to whichever server holds the recipient&#8217;s socket.</p>
     </div>
 

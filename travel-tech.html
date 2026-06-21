@@ -142,7 +142,8 @@ user clicks BOOK at 200s (cache already expired)
       <p><strong>What this teaches:</strong> caching shopping results cuts latency from ~1s to ~5ms and slashes GDS transaction costs, but a stale price is a real liability &mdash; the airline owns the fare and can change it. So you keep the search cache short (often 60&ndash;300s) and <em>always</em> re-validate price and availability at the moment of booking before you commit the PNR and take payment. This &ldquo;cache to shop, verify to book&rdquo; pattern is core to every travel platform.</p>
     </div>
 
-    <h2 id="questions">Q&amp;A bank</h2>
+    <p class="tts-note">Here is what those travel formats look like, in plain terms. A PNR, or passenger name record, is the booking file: it holds a six-character locator such as A-B-C-1-2-3, the passenger name, and the flight segments. An EDIFACT message is the older telex-style format &mdash; a series of coded segments like U-N-B, U-N-H, and S-S-R. NDC is the modern XML format, where the airline sends an Offer and you create an Order, more like shopping on a website and with far richer content than the old segment codes.</p>
+      <h2 id="questions">Q&amp;A bank</h2>
     <div class="search"><input type="text" data-search placeholder="Search travel-tech questions&hellip;" /></div>
     <div class="btn-row" style="margin-top:0">
       <button class="btn" data-open-all>Expand all</button>
