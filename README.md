@@ -59,3 +59,19 @@ The **This Week** page auto-populates. To enable the richer RSS digest with summ
 ---
 
 Built as a personal prep hub. Fork it, edit the text, make it yours.
+
+## Page narration audio (pre-generated MP3)
+
+Each page can be listened to. The on-page **Listen** button uses the browser's
+speech engine live; if a pre-recorded MP3 exists at `audio/<page>.mp3` it is
+used instead (better voice, and it routes to Bluetooth speakers on phones).
+
+- `scripts/generate_audio.py` extracts the readable text of every page (the
+  same content the Listen feature reads) and synthesises one MP3 per page with
+  Microsoft neural TTS (voice: en-US-AriaNeural). It is incremental via
+  `audio/manifest.json` — only changed pages are re-generated.
+- `.github/workflows/audio.yml` runs that script on every push that changes a
+  page, and commits the refreshed MP3s automatically. (Generation needs
+  internet, so it runs in CI, not locally.)
+- To preview a voice or regenerate by hand: `python scripts/generate_audio.py`
+  (use `--dry-run` to print the extracted narration text without synthesising).

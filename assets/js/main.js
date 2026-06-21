@@ -286,11 +286,17 @@
 
     var RATES = [1, 1.25, 1.5, 0.85];
     var chunks = [], idx = 0, playing = false, paused = false, rate = 1, gen = 0, keep = null, timer = null;
+    var mode = "live", audioEl = null, hasMp3 = false;
+    var mp3Url = "audio/" + (current().replace(/\.html?$/, "") || "index") + ".mp3";
+    // If a pre-recorded narration MP3 exists for this page, prefer it (better voice + routes to Bluetooth).
+    try { fetch(mp3Url, { method: "HEAD" }).then(function (r) { hasMp3 = !!(r && r.ok); }).catch(function () {}); } catch (e) {}
 
     var bar = document.createElement("div");
     bar.className = "tts-bar"; bar.hidden = true;
     bar.innerHTML =
+      '<button class="tts-btn tts-jump tts-back" aria-label="Back 15 seconds" title="Back 15s">&#8634;15</button>' +
       '<button class="tts-btn tts-play" aria-label="Play / pause">&#9208;</button>' +
+      '<button class="tts-btn tts-jump tts-fwd" aria-label="Forward 15 seconds" title="Forward 15s">15&#8635;</button>' +
       '<button class="tts-btn tts-stop" aria-label="Stop">&#9632;</button>' +
       '<div class="tts-meta"><span class="tts-title">Reading this page aloud</span>' +
       '<span class="tts-pos">0 / 0</span></div>' +
@@ -299,6 +305,8 @@
     var playBtn = bar.querySelector(".tts-play"),
         stopBtn = bar.querySelector(".tts-stop"),
         speedBtn = bar.querySelector(".tts-speed"),
+        backBtn = bar.querySelector(".tts-back"),
+        fwdBtn = bar.querySelector(".tts-fwd"),
         posEl = bar.querySelector(".tts-pos");
 
     function pickVoice() {
@@ -322,7 +330,8 @@
     }
     function collect() {
       var c = document.querySelector(".content"); if (!c) return [];
-      var nodes = Array.prototype.slice.call(c.querySelectorAll("h1,h2,h3,h4,p,li,figcaption,summary,.tts-note"));
+      var nodes = Array.prototype.slice.call(c.querySelectorAll(
+        "h1,h2,h3,h4,p,li,figcaption,summary,.tts-note,.callout>.label,.say>.label,.story>.label,.recap>.label"));
       var out = [], seen = [];
       nodes.forEach(function (el) {
         if (seen.indexOf(el) !== -1) return; seen.push(el);
@@ -333,7 +342,10 @@
         if (!isNote && !isCap && (el.closest("pre") || el.closest(".diagram") || el.closest("svg") || el.closest(".toc"))) return;
         if (el.closest(".tts-skip")) return;
         if (el.tagName === "LI" && el.querySelector("ul,ol,li")) return;
-        var t = blockText(el).replace(/\s+/g, " ").trim();
+        // strip emoji, arrows, bullets and other symbols so they aren't read as noise
+        var t = blockText(el)
+          .replace(/[\u{1F000}-\u{1FAFF}\u{2190}-\u{21FF}\u{2300}-\u{27BF}\u{2B00}-\u{2BFF}\u{FE0F}•■-◿]/gu, " ")
+          .replace(/\s+/g, " ").trim();
         if (t.length < 2) return;
         out.push({ el: el, text: t });
       });
@@ -397,15 +409,35 @@
       };
       try { synth.speak(u); } catch (err) { idx++; schedule(); }
     }
-    function start() {
+    function fmt(s) { s = Math.max(0, Math.floor(s || 0)); return Math.floor(s / 60) + ":" + ("0" + (s % 60)).slice(-2); }
+    function start() { if (hasMp3) startMp3(); else startLive(); }
+    function startLive() {
+      mode = "live";
       gen++; synth.cancel();
       chunks = chunk(collect());
       if (!chunks.length) return;
       idx = 0; playing = true; paused = false;
+      bar.querySelector(".tts-title").textContent = "Reading this page aloud";
       bar.hidden = false; paint(); speak();
-      if (!keep) keep = setInterval(function () { if (playing && !paused) { try { synth.resume(); } catch (e) {} } }, 10000);
+      if (!keep) keep = setInterval(function () { if (playing && !paused && mode === "live") { try { synth.resume(); } catch (e) {} } }, 10000);
+    }
+    function startMp3() {
+      mode = "mp3";
+      if (!audioEl) {
+        audioEl = new Audio(mp3Url);
+        audioEl.preload = "metadata";
+        audioEl.addEventListener("timeupdate", function () { posEl.textContent = fmt(audioEl.currentTime) + " / " + fmt(audioEl.duration); });
+        audioEl.addEventListener("ended", stop);
+        audioEl.addEventListener("error", function () { hasMp3 = false; if (playing) { playing = false; startLive(); } });
+      }
+      audioEl.playbackRate = rate;
+      playing = true; paused = false;
+      bar.querySelector(".tts-title").textContent = "Playing narration";
+      bar.hidden = false; paint();
+      audioEl.play().catch(function () { hasMp3 = false; playing = false; startLive(); });
     }
     function stop() {
+      if (audioEl) { try { audioEl.pause(); audioEl.currentTime = 0; } catch (e) {} }
       gen++; playing = false; paused = false; synth.cancel(); clearHi();
       if (timer) { clearTimeout(timer); timer = null; }
       bar.hidden = true; paint();
@@ -413,6 +445,10 @@
     }
     function togglePause() {
       if (!playing) return;
+      if (mode === "mp3" && audioEl) {
+        if (paused) { paused = false; audioEl.play(); } else { paused = true; audioEl.pause(); }
+        paint(); return;
+      }
       if (paused) {
         paused = false;
         if (synth.speaking || synth.pending) synth.resume(); else schedule();
@@ -423,12 +459,29 @@
       }
       paint();
     }
+    function estSec(text) { return text.split(/\s+/).length / (2.6 * (rate || 1)); }
+    function skip(seconds) {
+      if (!playing) return;
+      if (mode === "mp3" && audioEl) {
+        audioEl.currentTime = Math.max(0, Math.min(audioEl.duration || 0, audioEl.currentTime + seconds));
+        return;
+      }
+      if (!chunks.length) return;
+      var dir = seconds < 0 ? -1 : 1, budget = Math.abs(seconds), i = idx;
+      while (budget > 0 && i + dir >= 0 && i + dir < chunks.length) { i += dir; budget -= estSec(chunks[i].text); }
+      idx = Math.max(0, Math.min(chunks.length - 1, i));
+      gen++; if (timer) { clearTimeout(timer); timer = null; }
+      synth.cancel(); paused = false; paint(); speak();
+    }
     btn.addEventListener("click", function () { if (playing) stop(); else start(); });
     playBtn.addEventListener("click", togglePause);
+    backBtn.addEventListener("click", function () { skip(-15); });
+    fwdBtn.addEventListener("click", function () { skip(15); });
     stopBtn.addEventListener("click", stop);
     speedBtn.addEventListener("click", function () {
       rate = RATES[(RATES.indexOf(rate) + 1) % RATES.length];
       speedBtn.innerHTML = rate + "&times;";
+      if (mode === "mp3" && audioEl) { audioEl.playbackRate = rate; return; }
       if (playing && !paused) { gen++; synth.cancel(); speak(); }
     });
     window.addEventListener("beforeunload", function () { try { synth.cancel(); } catch (e) {} });
